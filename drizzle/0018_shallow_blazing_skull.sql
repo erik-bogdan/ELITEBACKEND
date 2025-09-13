@@ -1,0 +1,1 @@
+ALTER TABLE "matches" ADD COLUMN "tracking_finished_at" timestamp;

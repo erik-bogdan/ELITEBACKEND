@@ -1,0 +1,1 @@
+ALTER TABLE "user" ALTER COLUMN "nickname" SET DEFAULT '';

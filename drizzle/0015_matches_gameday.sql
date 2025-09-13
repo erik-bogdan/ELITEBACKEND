@@ -1,0 +1,2 @@
+ALTER TABLE "matches" ADD COLUMN IF NOT EXISTS "game_day" integer NOT NULL DEFAULT 1;
+

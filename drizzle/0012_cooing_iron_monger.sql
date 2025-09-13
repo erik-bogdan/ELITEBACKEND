@@ -1,0 +1,4 @@
+ALTER TABLE "matches" ADD COLUMN "home_league_team_id" uuid;--> statement-breakpoint
+ALTER TABLE "matches" ADD COLUMN "away_league_team_id" uuid;--> statement-breakpoint
+ALTER TABLE "matches" ADD CONSTRAINT "matches_home_league_team_id_league_teams_id_fk" FOREIGN KEY ("home_league_team_id") REFERENCES "public"."league_teams"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "matches" ADD CONSTRAINT "matches_away_league_team_id_league_teams_id_fk" FOREIGN KEY ("away_league_team_id") REFERENCES "public"."league_teams"("id") ON DELETE no action ON UPDATE no action;
