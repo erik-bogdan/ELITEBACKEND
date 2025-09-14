@@ -16,7 +16,7 @@ export const app = new Elysia()
   }))
   .use(
       cors({
-        origin: ["localhost:3000", "localhost:3001", "localhost:3002", "localhost:3003"],
+        origin: ["localhost:3000", "localhost:3001", "localhost:3002", "localhost:3003", "elite-fe-five.vercel.app", "elitebeerpong.hu", "elite.sorpingpong.hu"],
         methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
         credentials: true,
         allowedHeaders: ["Content-Type", "Authorization"],
