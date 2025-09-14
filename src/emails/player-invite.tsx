@@ -53,6 +53,7 @@ export default function PlayerInviteEmail({
                     width: '100%',
                     maxWidth: '560px',
                     margin: '0 auto',
+                    justifyItems: 'center',
                 }}
               >
                 <Img src={logoUrl} alt="ELITE Beerpong" width={300} height={48} className="mx-auto" style={{ width: '100%', maxWidth: '220px', height: 'auto', display: 'block' }} />
@@ -62,7 +63,7 @@ export default function PlayerInviteEmail({
             </Section>
 
             <Section className="px-8 py-6 text-[#0b1221]">
-              <Text className="text-sm text-gray-700">Szia {recipientName},</Text>
+              <Text className="text-sm text-gray-700">Kedves {recipientName},</Text>
               <Text className="text-base leading-6 mt-2">
                 {teamName ? (<>
                   Meghívást kaptál, hogy csatlakozz a(z) <strong>{teamName}</strong> csapathoz. Az alábbi gombra kattintva elfogadhatod a meghívást és befejezheted a regisztrációt.

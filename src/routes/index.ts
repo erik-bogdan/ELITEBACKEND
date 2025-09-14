@@ -6,6 +6,8 @@ import { seasonRouter } from "./season.router";
 import { appAuthRouter } from "./auth.router";
 import { applyRouter } from "./apply.router";
 import { userRouter } from "./user.router";
+import { logsRouter } from "./logs.router";
+import { adminUsersRouter } from "./admin.users.router";
 
 export const routers = [
   championshipRouter,
@@ -15,5 +17,7 @@ export const routers = [
   seasonRouter,
   appAuthRouter,
   applyRouter,
-  userRouter
+  userRouter,
+  logsRouter,
+  adminUsersRouter
 ]; 

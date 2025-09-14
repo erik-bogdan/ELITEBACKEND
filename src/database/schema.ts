@@ -221,3 +221,14 @@ export const playerGamedayMvps = pgTable('player_gameday_mvps', {
   createdAt: timestamp('created_at').defaultNow(),
   updatedAt: timestamp('updated_at').defaultNow()
 });
+
+// System logs for tracking user operations
+export const systemLogs = pgTable('system_logs', {
+  id: uuid().notNull().primaryKey().defaultRandom(),
+  datetime: timestamp('datetime').notNull().defaultNow(),
+  userId: text('user_id').notNull().references(() => user.id, { onDelete: 'cascade' }),
+  type: text('type').notNull(), // 'invite', 'match', 'championship', 'team', 'player', etc.
+  operation: text('operation').notNull(), // Human readable description of the operation
+  metadata: jsonb('metadata'), // Additional data like team names, match scores, etc.
+  createdAt: timestamp('created_at').defaultNow()
+});

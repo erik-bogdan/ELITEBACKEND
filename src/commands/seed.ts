@@ -1,5 +1,5 @@
 import { db } from "../db";
-import { seasons, teams, players, teamPlayers, user as userTable } from "../database/schema";
+import { seasons, teams, players, teamPlayers, user as userTable, leagues, leagueTeams } from "../database/schema";
 import { eq } from "drizzle-orm";
 import { auth } from "../plugins/auth/auth";
 
@@ -40,11 +40,58 @@ async function seedTeams(names: string[]) {
   return created;
 }
 
+async function seedEliteChampionship(seasonId: string, teamNameToId: Record<string, string>) {
+  const name = 'ELITE';
+  const slug = slugify(name);
+  const properties: any = {
+    type: 'league',
+    rounds: 2,
+    teamCount: 12,
+    relegations: 2,
+    registrationClose: new Date('2025-09-22T21:59:59Z'),
+    regfee: '87.000 Ft/csapat',
+    regfeeDueDate: '2025-10-10',
+    nyeremeny_text: 'Az elite nyertese tárgynyereményeken túl pénznyereményben részesül.',
+    nyeremeny_value: '230.000 Ft',
+    masodik_nyeremeny_text: 'A második helyezett csapat pénznyereményben részesül',
+    masodik_nyeremeny_value: '45.000 Ft',
+    hasPlayoff: true,
+    gameDays: [
+      { name: 'Qualification', date: '2025-09-26', gameday: false },
+      { name: 'PRESEASON', date: '2025-10-03', gameday: false },
+      { name: 'Gameday #1', date: '2025-10-10', gameday: true },
+      { name: 'Gameday #2', date: '2025-10-24', gameday: true },
+      { name: 'Gameday #3', date: '2025-11-07', gameday: true },
+      { name: 'Gameday #4', date: '2025-11-21', gameday: true },
+    ]
+  };
+
+  const [leagueRow] = await db.insert(leagues).values({
+    seasonId,
+    name,
+    slug,
+    properties,
+    isActive: true,
+    isArchived: false,
+    phase: 'regular',
+  }).returning();
+
+  const leagueId = leagueRow.id as string;
+  const teamIds = Object.values(teamNameToId);
+  for (const teamId of teamIds) {
+    await db.insert(leagueTeams).values({ leagueId, teamId, status: 'pending' });
+  }
+
+  return leagueId;
+}
+
 type PlayerSeed = {
   firstName: string;
   lastName: string;
   nickname?: string;
   teamName: string;
+  email?: string;
+  captain?: boolean;
 };
 
 async function seedPlayersForSeason(playerSeeds: PlayerSeed[], teamNameToId: Record<string, string>, seasonId: string) {
@@ -59,13 +106,14 @@ async function seedPlayersForSeason(playerSeeds: PlayerSeed[], teamNameToId: Rec
         firstName: p.firstName,
         lastName: p.lastName,
         nickname,
+        email: p.email || null,
         teamId,
       })
       .returning();
 
     await db
       .insert(teamPlayers)
-      .values({ teamId, playerId: created.id as string, seasonId, captain: false });
+      .values({ teamId, playerId: created.id as string, seasonId, captain: !!p.captain });
   }
 }
 
@@ -96,40 +144,43 @@ async function main() {
 
   // 3) Players and assignments for the active season
   const playerSeeds: PlayerSeed[] = [
-    { firstName: "Princz", lastName: "Tamás", teamName: "Albertirsai BPC" },
-    { firstName: "Czirókai", lastName: "zsombor", teamName: "Albertirsai BPC" },
-    { firstName: "Bogdán", lastName: "Erik", teamName: "Amíg BEERom" },
-    { firstName: "Bogdán", lastName: "Krisztián", teamName: "Amíg BEERom" },
-    { firstName: "Illés", lastName: "Roland", teamName: "Amíg BEERom" },
-    { firstName: "Juhász", lastName: "Árpád", teamName: "KPS-SteelCity" },
-    { firstName: "Antal", lastName: "Norbert", teamName: "KPS-SteelCity" },
-    { firstName: "Nagy", lastName: "Benjámin", teamName: "CraftCrew" },
-    { firstName: "Kőrössi", lastName: "Balázs", teamName: "CraftCrew" },
-    { firstName: "Zethner", lastName: "Márk", teamName: "DUNNO" },
-    { firstName: "Kassai", lastName: "Ákos", teamName: "DUNNO" },
-    { firstName: "Frankó", lastName: "Balázs", teamName: "DUNNO" },
-    { firstName: "Hegedűs", lastName: "Róbert", teamName: "Te is fiam, Shark!?" },
-    { firstName: "Németh", lastName: "Bence", teamName: "Te is fiam, Shark!?" },
-    { firstName: "Juhász", lastName: "Domonkos", teamName: "LeVerEgyBlant" },
-    { firstName: "Kelemen", lastName: "Ákos", teamName: "LeVerEgyBlant" },
-    { firstName: "Szabó", lastName: "Dávid", nickname: "Jack", teamName: "LeVerEgyBlant" },
-    { firstName: "Vágó", lastName: "Soma", teamName: "csicskaRóli" },
-    { firstName: "Deák", lastName: "Dániel", teamName: "csicskaRóli" },
-    { firstName: "Bajusz", lastName: "Zoltán", teamName: "csicskaRóli" },
-    { firstName: "Toldi", lastName: "Csaba", teamName: "HESSZ" },
-    { firstName: "Farkas", lastName: "Bence", teamName: "HESSZ" },
-    { firstName: "Bodnár", lastName: "Dániel", teamName: "HESSZ" },
-    { firstName: "Németh", lastName: "Marcell", teamName: "CraftCinya" },
-    { firstName: "Ács", lastName: "Máté", teamName: "CraftCinya" },
-    { firstName: "Molnár", lastName: "Dániel", teamName: "CraftCinya" },
-    { firstName: "Tóth", lastName: "Ádám", teamName: "Giants" },
-    { firstName: "Eiler", lastName: "Bálint", teamName: "Giants" },
-    { firstName: "Komán", lastName: "Huba", teamName: "Giants" },
-    { firstName: "Szíjártó", lastName: "Dániel", teamName: "KakiMaki" },
-    { firstName: "Bodnár", lastName: "Tamás", teamName: "KakiMaki" },
+    { lastName: "Princz", firstName: "Tamás", teamName: "Albertirsai BPC" },
+    { lastName: "Czirókai", firstName: "Zsombor", teamName: "Albertirsai BPC", email: "czformal@gmail.com", captain: true },
+    { lastName: "Bogdán", firstName: "Erik", teamName: "Amíg BEERom", email: "erik.bogdan@gmail.com", captain: true },
+    { lastName: "Bogdán", firstName: "Krisztián", teamName: "Amíg BEERom" },
+    { lastName: "Illés", firstName: "Roland", teamName: "Amíg BEERom" },
+    { lastName: "Juhász", firstName: "Árpád", teamName: "KPS-SteelCity", email: "kpsa@outlook.hu", captain: true },
+    { lastName: "Antal", firstName: "Norbert", teamName: "KPS-SteelCity" },
+    { lastName: "Nagy", firstName: "Benjámin", teamName: "CraftCrew", email: "nagy.benjamin@gtkhk.bme.hu", captain: true },
+    { lastName: "Kőrössi", firstName: "Balázs", teamName: "CraftCrew" },
+    { lastName: "Zethner", firstName: "Márk", teamName: "DUNNO" },
+    { lastName: "Kassai", firstName: "Ákos", teamName: "DUNNO", email: "kassaiakos91@gmail.com", captain: true },
+    { lastName: "Frankó", firstName: "Balázs", teamName: "DUNNO" },
+    { lastName: "Hegedűs", firstName: "Róbert", teamName: "Te is fiam, Shark!?", email: "hegedusroberthr@gmail.com", captain: true },
+    { lastName: "Németh", firstName: "Bence", teamName: "Te is fiam, Shark!?" },
+    { lastName: "Juhász", firstName: "Domonkos", teamName: "LeVerEgyBlant", email: "juhaszddomi@gmail.com", captain: true },
+    { lastName: "Kelemen", firstName: "Ákos", teamName: "LeVerEgyBlant" },
+    { lastName: "Szabó", firstName: "Dávid", nickname: "Jack", teamName: "LeVerEgyBlant" },
+    { lastName: "Vágó", firstName: "Soma", teamName: "csicskaRóli" },
+    { lastName: "Deák", firstName: "Dániel", teamName: "csicskaRóli", email: "deak.dani22@gmail.com", captain: true },
+    { lastName: "Bajusz", firstName: "Zoltán", teamName: "csicskaRóli" },
+    { lastName: "Toldy", firstName: "Csaba", teamName: "HESSZ", email: "csaba.toldy03@gmail.com", captain: true },
+    { lastName: "Farkas", firstName: "Bence", teamName: "HESSZ" },
+    { lastName: "Bodnár", firstName: "Dániel", teamName: "HESSZ" },
+    { lastName: "Németh", firstName: "Marcell", teamName: "CraftCinya" },
+    { lastName: "Ács", firstName: "Máté", teamName: "CraftCinya", email: "szinyusz@gmail.com", captain: true },
+    { lastName: "Molnár", firstName: "Dániel", teamName: "CraftCinya" },
+    { lastName: "Tóth", firstName: "Ádám", teamName: "Giants", email: "adam.toth28@gmail.com", captain: true },
+    { lastName: "Eiler", firstName: "Bálint", teamName: "Giants" },
+    { lastName: "Komán", firstName: "Huba", teamName: "Giants" },
+    { lastName: "Szíjártó", firstName: "Dániel", teamName: "KakiMaki" },
+    { lastName: "Bodnár", firstName: "Tamás", teamName: "KakiMaki", email: "tamasattila.bodnar@gmail.com", captain: true },
   ];
 
   await seedPlayersForSeason(playerSeeds, teamNameToId, seasonId);
+
+  // 3/b) Create ELITE championship and attach teams
+  await seedEliteChampionship(seasonId, teamNameToId);
 
   // 4) Ensure admin user
   try {

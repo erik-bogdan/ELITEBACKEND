@@ -51,6 +51,7 @@ export default function TeamInviteEmail({
                   width: '100%',
                   maxWidth: '560px',
                   margin: '0 auto',
+                  justifyItems: 'center',
                 }}
               >
                 <Img src={logoUrl} alt="ELITE Beerpong" width={300} height={48} className="mx-auto" style={{ width: '100%', maxWidth: '220px', height: 'auto' }} />
@@ -62,7 +63,7 @@ export default function TeamInviteEmail({
             <Section className="px-8 py-6 text-[#0b1221]">
               <Text className="text-sm text-gray-700">Szia {recipientName},</Text>
               <Text className="text-base leading-6 mt-2">
-                Meghívást kapott csapatod, a(z) <strong>{teamName}</strong>, hogy csatlakozzatok a(z) <strong>{championshipName}</strong> szezonjában. Az alábbi gombra kattintva elfogadhatod a meghívást és befejezheted a regisztrációt.
+                Meghívást kapott csapatod, a(z) <strong>{teamName}</strong>, hogy csatlakozzatok a(z) <strong>{championshipName}</strong> szezonjában. Az alábbi gombra kattintva elfogadhatod a meghívást és befejezheted a regisztrációt. Ha a jelszó megadása után véletlen bezárnád az ablakot, abban az esetben bejelentkezés után egyből látni fogod a meghívót!
               </Text>
 
               <Section className="text-center my-8">

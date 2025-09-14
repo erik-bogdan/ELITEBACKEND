@@ -27,6 +27,7 @@ export const auth = betterAuth({
                 let inviteToken: string | null = null;
                 let champName: string | undefined;
                 let teamName: string | undefined;
+                let recipientName: string | undefined;
                 try {
                     const u = new URL(url);
                     const cb = u.searchParams.get('callbackURL');
@@ -37,6 +38,24 @@ export const auth = betterAuth({
                         teamName = cbu.searchParams.get('team');
                     }
                 } catch {}
+                // If we have an invite token, try to resolve recipient name from player
+                if (inviteToken) {
+                    try {
+                        const invites = await db.select().from(playerInvitations).where(eq(playerInvitations.token, inviteToken));
+                        const inv = invites?.[0];
+                        if (inv) {
+                            const players = await db.select().from(schema.players).where(eq(schema.players.id, inv.playerId));
+                            const pl: any = players?.[0];
+                            if (pl) {
+                                const first = (pl.firstName ?? '').toString().trim();
+                                if (first) recipientName = first;
+                                else if (pl.nickname) recipientName = String(pl.nickname).split(' ')[0];
+                                else recipientName = undefined;
+                            }
+                        }
+                    } catch {}
+                }
+
                 const frontendInvite = inviteToken
                     ? `${frontendUrl}/auth/accept-invite?ba=${encodeURIComponent(token)}&invite=${encodeURIComponent(inviteToken)}`
                     : `${frontendUrl}/auth/accept-invite?ba=${encodeURIComponent(token)}`;
@@ -52,14 +71,14 @@ export const auth = betterAuth({
                               championshipName: champName || 'ELITE Beerpong',
                               teamName: teamName || '',
                               inviteUrl: frontendInvite,
-                              recipientName: undefined,
+                              recipientName,
                               expiresAt: '',
                               inviterName: 'ELITE Beerpong',
                               supportEmail: 'support@elitebeerpong.hu',
                             } as any)
                           : PlayerInviteEmail({
                               inviteUrl: frontendInvite,
-                              recipientName: undefined,
+                              recipientName,
                               teamName: teamName,
                               expiresAt: '',
                               inviterName: 'ELITE Beerpong',

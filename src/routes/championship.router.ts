@@ -21,11 +21,21 @@ import { eq, sql, and } from 'drizzle-orm';
 import TeamInviteEmail from '../emails/invite';
 import { EmailService } from '../services/email.service';
 import { nanoid } from 'nanoid';
+import { LoggingService } from '../services/logging.service';
+import { auth } from '../plugins/auth/auth';
 
 export const championshipRouter = new Elysia({ prefix: '/api/championship' })
-  .post('/', async ({ body, set }) => {
+  .post('/', async ({ body, set, request }) => {
     try {
-      return await createChampionship(body as any);
+      const session = await auth.api.getSession({ headers: request.headers });
+      const result = await createChampionship(body as any);
+      
+      // Log championship creation
+      if (session && result && result.name) {
+        await LoggingService.logChampionshipCreate(session.user.id, result.name);
+      }
+      
+      return result;
     } catch (error) {
       set.status = 400;
       return {
@@ -114,8 +124,9 @@ export const championshipRouter = new Elysia({ prefix: '/api/championship' })
       };
     }
   })
-  .put('/:id', async ({ params: { id }, body, set }) => {
+  .put('/:id', async ({ params: { id }, body, set, request }) => {
     try {
+      const session = await auth.api.getSession({ headers: request.headers });
       const championship = await updateChampionship(id, body as any);
       if (!championship) {
         set.status = 404;
@@ -124,6 +135,12 @@ export const championshipRouter = new Elysia({ prefix: '/api/championship' })
           message: 'Championship not found'
         };
       }
+      
+      // Log championship update
+      if (session && championship.name) {
+        await LoggingService.logChampionshipUpdate(session.user.id, championship.name);
+      }
+      
       return championship;
     } catch (error) {
       set.status = 400;

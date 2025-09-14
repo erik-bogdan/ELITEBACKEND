@@ -9,6 +9,8 @@ import {
   updateMatchResult,
   updateMatchStatus
 } from '../services/matches/match.service';
+import { LoggingService } from '../services/logging.service';
+import { auth } from '../plugins/auth/auth';
 
 export const matchRouter = new Elysia({ prefix: '/api/matches' })
   .get('/league/:leagueId', async ({ params }) => {
@@ -70,8 +72,37 @@ export const matchRouter = new Elysia({ prefix: '/api/matches' })
     }
   })
 
-  .put('/:id/result', async ({ params, body }) => {
-    return await updateMatchResult(params.id, body);
+  .put('/:id/result', async ({ params, body, request }) => {
+    const session = await auth.api.getSession({ headers: request.headers });
+    if (!session) {
+      return { error: true, message: 'Unauthorized' };
+    }
+
+    const result = await updateMatchResult(params.id, body);
+    
+    // Get match details for logging
+    const match = await getMatchById(params.id);
+    if (match && match.match) {
+      const homeTeamName = match.homeTeam?.name || 'Ismeretlen csapat';
+      const awayTeamName = match.awayTeam?.name || 'Ismeretlen csapat';
+      const homeScore = body.homeTeamScore;
+      const awayScore = body.awayTeamScore;
+      
+      // Get championship name
+      const [league] = await db.select({ name: leagues.name }).from(leagues).where(eq(leagues.id, match.match.leagueId));
+      
+      // Log the match result
+      await LoggingService.logMatchResult(
+        session.user.id,
+        homeTeamName,
+        awayTeamName,
+        homeScore,
+        awayScore,
+        league?.name
+      );
+    }
+    
+    return result;
   }, {
     params: t.Object({
       id: t.String()

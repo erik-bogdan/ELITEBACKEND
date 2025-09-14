@@ -22,6 +22,7 @@ export const playerRouter = new Elysia({ prefix: '/api/players' })
     const teamId = (query as any)?.teamId as string | undefined;
     const seasonId = (query as any)?.seasonId as string | undefined;
     const pattern = `%${q}%`;
+    const onlyUnlinked = String((query as any)?.onlyUnlinked || '').toLowerCase() === 'true';
 
     if (teamId && seasonId) {
       const rows = await db
@@ -60,19 +61,21 @@ export const playerRouter = new Elysia({ prefix: '/api/players' })
         lastName: players.lastName,
         email: players.email,
         shirtSize: players.shirtSize,
+        userId: players.userId,
       })
       .from(players)
-      .where(
+      .where(and(
         or(
           ilike(players.firstName, pattern),
           ilike(players.lastName, pattern),
           ilike(players.nickname, pattern),
           ilike(players.email, pattern),
-        )
-      );
+        ),
+        onlyUnlinked ? isNull(players.userId) : undefined as any
+      ));
     return rows;
   }, {
-    query: t.Object({ q: t.Optional(t.String()), teamId: t.Optional(t.String()), seasonId: t.Optional(t.String()) }),
+    query: t.Object({ q: t.Optional(t.String()), teamId: t.Optional(t.String()), seasonId: t.Optional(t.String()), onlyUnlinked: t.Optional(t.String()) }),
     detail: { summary: 'Search players by name/nickname/email', tags: ['Players'] }
   })
 

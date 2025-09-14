@@ -4,6 +4,7 @@ import { leagues, leagueTeams, players, teamPlayers, teams, playerInvitations, u
 import { auth } from '../plugins/auth/auth';
 import { and, eq } from 'drizzle-orm';
 import { nanoid } from 'nanoid';
+import { LoggingService } from '../services/logging.service';
 
 export const applyRouter = new Elysia({ prefix: '/api/apply' })
   .get('/:leagueTeamId/meta', async ({ params, request, set }) => {
@@ -113,6 +114,12 @@ export const applyRouter = new Elysia({ prefix: '/api/apply' })
       await db.update(leagueTeams)
         .set({ status: 'declined', declineReason: 'team_declined', updatedAt: new Date() })
         .where(eq(leagueTeams.id, leagueTeamId));
+
+      // Get team name for logging
+      const [team] = await db.select({ name: teams.name }).from(teams).where(eq(teams.id, lt.teamId));
+      
+      // Log the decline operation
+      await LoggingService.logInviteDecline(session.user.id, lg.name, team?.name);
 
       return { success: true };
     } catch (e) {
@@ -243,6 +250,12 @@ export const applyRouter = new Elysia({ prefix: '/api/apply' })
         await tx.update(leagueTeams)
           .set({ status: 'approved', updatedAt: new Date(), declineReason: null, heir: null })
           .where(eq(leagueTeams.id, lt.id));
+
+        // Get team name for logging
+        const [team] = await tx.select({ name: teams.name }).from(teams).where(eq(teams.id, lt.teamId));
+        
+        // Log the accept operation
+        await LoggingService.logInviteAccept(session.user.id, lg.name, team?.name);
 
         return { approved: true };
       });
@@ -386,6 +399,9 @@ export const applyRouter = new Elysia({ prefix: '/api/apply' })
 
         return { newTeamId: newTeam.id as string, newLeagueTeamId: newLt.id as string };
       });
+
+      // Log the rename and accept operation
+      await LoggingService.logInviteAccept(session.user.id, lg.name, newTeamName);
 
       return { success: true, ...result };
     } catch (e) {
