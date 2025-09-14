@@ -11,7 +11,7 @@ import PlayerInviteEmail from "../../emails/player-invite";
 import { EmailService } from "../../services/email.service";
 
 export const auth = betterAuth({
-    trustedOrigins: ['http://localhost:3001', 'http://localhost:3002', 'http://localhost:3003'],
+    trustedOrigins: ['http://localhost:3001', 'http://localhost:3002', 'http://localhost:3003', 'https://elite-fe-five.vercel.app', 'https://elitebeerpong.hu', 'https://elite.sorpingpong.hu'],
     database: drizzleAdapter(db, {
         schema,
         provider: "pg",
