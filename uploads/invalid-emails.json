@@ -1,0 +1,206 @@
+[
+  {
+    "email": "123@beh.nh",
+    "reason": "Fake domain: beh.nh"
+  },
+  {
+    "email": "1234@be.fr",
+    "reason": "Fake domain: be.fr"
+  },
+  {
+    "email": "a@b.com",
+    "reason": "Fake local part: a"
+  },
+  {
+    "email": "azttejobbantudod@vmi",
+    "reason": "Invalid email format"
+  },
+  {
+    "email": "boba@gmail.com",
+    "reason": "Fake local part: boba"
+  },
+  {
+    "email": "boglarkatobi@gmail",
+    "reason": "Invalid email format"
+  },
+  {
+    "email": "bruno.12@gmail",
+    "reason": "Invalid email format"
+  },
+  {
+    "email": "cinimisz@hormail.com",
+    "reason": "Fake domain: hormail.com"
+  },
+  {
+    "email": "cmi@vmi.com",
+    "reason": "Fake domain: vmi.com"
+  },
+  {
+    "email": "csd@asd.com",
+    "reason": "Fake domain: asd.com"
+  },
+  {
+    "email": "csosz911@gmail",
+    "reason": "Invalid email format"
+  },
+  {
+    "email": "fogy@tekos.hu",
+    "reason": "Fake domain: tekos.hu"
+  },
+  {
+    "email": "fulivagyok@gmail.com",
+    "reason": "Contains placeholder text"
+  },
+  {
+    "email": "gcs@asd.com",
+    "reason": "Fake domain: asd.com"
+  },
+  {
+    "email": "gyereramtevadallat@beerpongmail.hu",
+    "reason": "Fake domain: beerpongmail.hu"
+  },
+  {
+    "email": "h@gmail.com",
+    "reason": "Fake local part: h"
+  },
+  {
+    "email": "hd@asd.com",
+    "reason": "Fake domain: asd.com"
+  },
+  {
+    "email": "hghh@g.hu",
+    "reason": "Fake domain: g.hu"
+  },
+  {
+    "email": "hshs@hehs.hu",
+    "reason": "Fake domain: hehs.hu"
+  },
+  {
+    "email": "hshsh@hshs.hu",
+    "reason": "Fake domain: hshs.hu"
+  },
+  {
+    "email": "idk@gmail.com",
+    "reason": "Fake local part: idk"
+  },
+  {
+    "email": "j@j.hu",
+    "reason": "Fake domain: j.hu"
+  },
+  {
+    "email": "k@g.com",
+    "reason": "Fake local part: k"
+  },
+  {
+    "email": "k@k.hu",
+    "reason": "Fake domain: k.hu"
+  },
+  {
+    "email": "kapci@kukac",
+    "reason": "Invalid email format"
+  },
+  {
+    "email": "karcsi@gmail.com",
+    "reason": "Fake local part: karcsi"
+  },
+  {
+    "email": "kifli@kifli.com",
+    "reason": "Fake domain: kifli.com"
+  },
+  {
+    "email": "megmindignemtudom@esnemisfogom.tudni",
+    "reason": "Fake domain: esnemisfogom.tudni"
+  },
+  {
+    "email": "n.a@gmail.com",
+    "reason": "Fake local part: n.a"
+  },
+  {
+    "email": "nagy.benjamin@bmegtkhk.hu",
+    "reason": "Fake domain: bmegtkhk.hu"
+  },
+  {
+    "email": "nem@tudom",
+    "reason": "Invalid email format"
+  },
+  {
+    "email": "nemtkm@gmail.com",
+    "reason": "Contains placeholder text"
+  },
+  {
+    "email": "nemtudom@nemtudom.com",
+    "reason": "Fake domain: nemtudom.com"
+  },
+  {
+    "email": "ok@ok.ok",
+    "reason": "Fake domain: ok.ok"
+  },
+  {
+    "email": "ottoaron1996@gmai.com",
+    "reason": "Typo in domain: gmai.com"
+  },
+  {
+    "email": "passz@gmail.com",
+    "reason": "Fake local part: passz"
+  },
+  {
+    "email": "petya.kun@hotnail.com",
+    "reason": "Fake domain: hotnail.com"
+  },
+  {
+    "email": "s@k.com",
+    "reason": "Fake domain: k.com"
+  },
+  {
+    "email": "sandor.zsofiii@gmail",
+    "reason": "Invalid email format"
+  },
+  {
+    "email": "sanyi@sanyi.com",
+    "reason": "Fake local part: sanyi"
+  },
+  {
+    "email": "sj@asd.com",
+    "reason": "Fake domain: asd.com"
+  },
+  {
+    "email": "sorpingpongerd@gnail.com",
+    "reason": "Fake domain: gnail.com"
+  },
+  {
+    "email": "sventekvivien@gmail",
+    "reason": "Invalid email format"
+  },
+  {
+    "email": "szaller.szala@gmail",
+    "reason": "Invalid email format"
+  },
+  {
+    "email": "szarvasjnaka1998@gmail",
+    "reason": "Invalid email format"
+  },
+  {
+    "email": "vmi@cmi.com",
+    "reason": "Fake domain: cmi.com"
+  },
+  {
+    "email": "vmi@vmi.com",
+    "reason": "Fake domain: vmi.com"
+  },
+  {
+    "email": "vmi@vmi.hu",
+    "reason": "Fake domain: vmi.hu"
+  },
+  {
+    "email": "wasistdas@gmail.com",
+    "reason": "Contains placeholder text"
+  },
+  {
+    "email": "zsila@zsila.hu",
+    "reason": "Fake domain: zsila.hu"
+  },
+  {
+    "email": "zsila@zsila.zsila",
+    "reason": "Fake domain: zsila.zsila"
+  }
+]

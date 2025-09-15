@@ -9,6 +9,8 @@
     "seed:team-players": "bun run src/commands/seed-team-players.ts",
     "seed:matches": "bun run src/commands/seed-matches.ts",
     "seed:results": "bun run src/commands/seed-results.ts",
+    "extract-emails": "bun run src/commands/extract-emails.ts",
+    "filter-emails": "bun run src/commands/filter-emails.ts",
     "migrate": "bunx drizzle-kit migrate",
     "format": "bun run src/database/seed.ts format",
     "email": "email dev --dir src/emails",

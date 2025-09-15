@@ -3,7 +3,6 @@ import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { db } from "../../db";
 import * as schema from "./../../database/schema"; // Importáld a séma objektumot
 import { admin, magicLink } from "better-auth/plugins"
-import { db } from "../../db";
 import { playerInvitations } from "../../database/schema";
 import { eq } from "drizzle-orm";
 import TeamInviteEmail from "../../emails/invite";
