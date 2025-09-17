@@ -52,9 +52,9 @@ async function seedEliteChampionship(seasonId: string, teamNameToId: Record<stri
     regfee: '87.000 Ft/csapat',
     regfeeDueDate: '2025-10-10',
     nyeremeny_text: 'Az elite nyertese tárgynyereményeken túl pénznyereményben részesül.',
-    nyeremeny_value: '230.000 Ft',
+    nyeremeny_value: '(230.000 Ft)',
     masodik_nyeremeny_text: 'A második helyezett csapat pénznyereményben részesül',
-    masodik_nyeremeny_value: '45.000 Ft',
+    masodik_nyeremeny_value: '(45.000 Ft)',
     hasPlayoff: true,
     gameDays: [
       { name: 'Qualification', date: '2025-09-26', gameday: false },
@@ -77,9 +77,69 @@ async function seedEliteChampionship(seasonId: string, teamNameToId: Record<stri
   }).returning();
 
   const leagueId = leagueRow.id as string;
-  const teamIds = Object.values(teamNameToId);
-  for (const teamId of teamIds) {
-    await db.insert(leagueTeams).values({ leagueId, teamId, status: 'pending' });
+  
+  // Add only ELITE teams (exclude ELITE 2 teams)
+  const eliteTeamNames = [
+    "Albertirsai BPC", "Amíg BEERom", "CraftCinya", "CraftCrew", "csicskaRóli", 
+    "Giants", "HESSZ", "KakiMaki", "DUNNO", "KPS-SteelCity", 
+    "LeVerEgyBlant", "Te is fiam, Shark!?", "Memento Mori"
+  ];
+  
+  for (const teamName of eliteTeamNames) {
+    const teamId = teamNameToId[teamName];
+    if (teamId) {
+      await db.insert(leagueTeams).values({ leagueId, teamId, status: 'pending' });
+    }
+  }
+
+  return leagueId;
+}
+
+async function seedElite2Championship(seasonId: string, teamNameToId: Record<string, string>) {
+  const name = 'ELITE 2';
+  const slug = slugify(name);
+  const properties: any = {
+    type: 'league',
+    rounds: 2,
+    teamCount: 8,
+    relegations: 2,
+    registrationClose: new Date('2025-09-22T21:59:59Z'),
+    regfee: '60.000 Ft/csapat',
+    regfeeDueDate: '2025-10-10',
+    nyeremeny_text: 'Az ELITE 2 nyertese',
+    nyeremeny_value: 'Indulási jogot szerez az ELITE-be.',
+    masodik_nyeremeny_text: 'A második helyezett csapat osztályozót játszik az ELITE 11. helyezettjével.',
+    masodik_nyeremeny_value: '',
+    hasPlayoff: false,
+    gameDays: [
+      { name: 'Qualification', date: '2025-09-26', gameday: false },
+      { name: 'PRESEASON', date: '2025-10-03', gameday: false },
+      { name: 'Gameday #1', date: '2025-10-10', gameday: true },
+      { name: 'Gameday #2', date: '2025-10-24', gameday: true },
+      { name: 'Gameday #3', date: '2025-11-07', gameday: true },
+      { name: 'Gameday #4', date: '2025-11-21', gameday: true },
+    ]
+  };
+
+  const [leagueRow] = await db.insert(leagues).values({
+    seasonId,
+    name,
+    slug,
+    properties,
+    isActive: true,
+    isArchived: false,
+    phase: 'regular',
+  }).returning();
+
+  const leagueId = leagueRow.id as string;
+  
+  // Add ELITE 2 teams
+  const elite2TeamNames = ["Midgets", "Frodóért!", "Dinoco", "Bing Bong"];
+  for (const teamName of elite2TeamNames) {
+    const teamId = teamNameToId[teamName];
+    if (teamId) {
+      await db.insert(leagueTeams).values({ leagueId, teamId, status: 'pending' });
+    }
   }
 
   return leagueId;
@@ -139,6 +199,11 @@ async function main() {
     "KPS-SteelCity",
     "LeVerEgyBlant",
     "Te is fiam, Shark!?",
+    "Memento Mori",
+    "Midgets",
+    "Frodóért!",
+    "Dinoco",
+    "Bing Bong"
   ];
   const teamNameToId = await seedTeams(teamNames);
 
@@ -175,12 +240,30 @@ async function main() {
     { lastName: "Komán", firstName: "Huba", teamName: "Giants" },
     { lastName: "Szíjártó", firstName: "Dániel", teamName: "KakiMaki" },
     { lastName: "Bodnár", firstName: "Tamás", teamName: "KakiMaki", email: "tamasattila.bodnar@gmail.com", captain: true },
+    { lastName: "Kuti", firstName: "Barnabás", teamName: "Memento Mori", email: "kuti.barnabas95@gmail.com", captain: true },
+    { lastName: "Szabó", firstName: "Tamás", teamName: "Memento Mori" },
+    { lastName: "Fodor", firstName: "Bence", teamName: "Memento Mori" },
+    // ELITE 2 teams
+    { lastName: "Szilágyi", firstName: "Tas", teamName: "Midgets", captain: true, email: "tas.szilagyi@gmail.com" },
+    { lastName: "Tóth", firstName: "Benjamin", teamName: "Midgets" },
+    { lastName: "Sárkány", firstName: "Zsolt", teamName: "Midgets" },
+    { lastName: "Devecser", firstName: "Zsolt", teamName: "Frodóért!", captain: true, email: "zsdevecser@gmail.com" },
+    { lastName: "Karászi", firstName: "Gergely", teamName: "Frodóért!" },
+    { lastName: "Griszbacher", firstName: "Norbert", teamName: "Frodóért!" },
+    { lastName: "Pék", firstName: "Norbert", teamName: "Dinoco", captain: true, email: "norbeepekd@gmail.com" },
+    { lastName: "Orgován", firstName: "Patrik", teamName: "Dinoco" },
+    { lastName: "Molnár", firstName: "Zoltán József", teamName: "Dinoco" },
+    { lastName: "Pál", firstName: "Zsófia", teamName: "Bing Bong", email: "11palzsofi@gmail.com", captain: true },
+    { lastName: "Vitéz", firstName: "Benedek", teamName: "Bing Bong" },
   ];
 
   await seedPlayersForSeason(playerSeeds, teamNameToId, seasonId);
 
   // 3/b) Create ELITE championship and attach teams
   await seedEliteChampionship(seasonId, teamNameToId);
+
+  // 3/c) Create ELITE 2 championship and attach teams
+  await seedElite2Championship(seasonId, teamNameToId);
 
   // 4) Ensure admin user
   try {
