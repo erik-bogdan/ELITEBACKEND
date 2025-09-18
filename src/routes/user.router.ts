@@ -156,7 +156,7 @@ userRouter.put('/profile/avatar', async ({ request, body, set }) => {
     const [updated] = await db.update(players).set({ image: storedUrl }).where(eq(players.id, pl.id)).returning();
     
     // Return full URL for the image
-    const backendUrl = process.env.BACKEND_URL || 'http://localhost:3555';
+    const backendUrl = process.env.BACKEND_PUBLIC_URL || 'http://localhost:3555';
     const fullImageUrl = storedUrl ? `${backendUrl}${storedUrl}` : null;
     
     return { 

@@ -80,7 +80,7 @@ export async function getPlayerById(id: string): Promise<Player> {
   if (!player) {
     throw new Error('Player not found');
   }
-  const backendUrl = process.env.BACKEND_URL || 'http://localhost:3555';
+  const backendUrl = process.env.BACKEND_PUBLIC_URL || 'http://localhost:3555';
   
   return {
     ...player,
@@ -107,7 +107,7 @@ export async function getPlayerSeasons(playerId: string): Promise<Array<{ season
 
 export async function getPlayersByTeam(teamId: string): Promise<Player[]> {
   const result = await db.select().from(players).where(eq(players.teamId, teamId));
-  const backendUrl = process.env.BACKEND_URL || 'http://localhost:3555';
+  const backendUrl = process.env.BACKEND_PUBLIC_URL || 'http://localhost:3555';
   
   return (result as Player[]).map(player => ({
     ...player,
@@ -117,7 +117,7 @@ export async function getPlayersByTeam(teamId: string): Promise<Player[]> {
 
 export async function getAllPlayers(): Promise<Player[]> {
   const result = await db.select().from(players);
-  const backendUrl = process.env.BACKEND_URL || 'http://localhost:3555';
+  const backendUrl = process.env.BACKEND_PUBLIC_URL || 'http://localhost:3555';
   
   return (result as Player[]).map(player => ({
     ...player,
@@ -145,7 +145,7 @@ export async function getPlayersBySeason(seasonId: string): Promise<Player[]> {
     .innerJoin(players, eq(teamPlayers.playerId, players.id))
     .where(eq(teamPlayers.seasonId, seasonId));
   
-  const backendUrl = process.env.BACKEND_URL || 'http://localhost:3555';
+  const backendUrl = process.env.BACKEND_PUBLIC_URL || 'http://localhost:3555';
   
   return (result as unknown as Player[]).map(player => ({
     ...player,
