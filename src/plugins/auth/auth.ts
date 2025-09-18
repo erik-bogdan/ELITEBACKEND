@@ -73,7 +73,7 @@ export const auth = betterAuth({
                               recipientName,
                               expiresAt: '',
                               inviterName: 'ELITE Beerpong',
-                              supportEmail: 'support@elitebeerpong.hu',
+                              supportEmail: 'sorpingpong@gmail.com',
                             } as any)
                           : PlayerInviteEmail({
                               inviteUrl: frontendInvite,
@@ -81,7 +81,7 @@ export const auth = betterAuth({
                               teamName: teamName,
                               expiresAt: '',
                               inviterName: 'ELITE Beerpong',
-                              supportEmail: 'support@elitebeerpong.hu',
+                              supportEmail: 'sorpingpong@gmail.com',
                             } as any) as any,
                     });
                 } catch (err) {

@@ -18,7 +18,7 @@ export default function TeamInviteEmail({
   recipientName = 'Játékos',
   expiresAt,
   inviterName = 'ELITE Beerpong',
-  supportEmail = 'support@elitebeerpong.hu',
+  supportEmail = 'sorpingpong@gmail.com',
 }: InviteEmailProps) {
   const backendBase = process.env.BACKEND_PUBLIC_URL || `http://localhost:${process.env.BACKEND_PORT || 3555}`;
   const logoUrl = `${backendBase}/uploads/logo.svg`;
@@ -98,5 +98,5 @@ championshipName: 'ELITE Beerpong 2025/2026 Ősz',
   recipientName: 'Erik',
   expiresAt: '2025-12-31 23:59',
   inviterName: 'ELITE Beerpong',
-  supportEmail: 'support@elitebeerpong.hu',
+  supportEmail: 'sorpingpong@gmail.com',
 }

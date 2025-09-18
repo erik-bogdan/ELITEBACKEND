@@ -16,7 +16,7 @@ export default function PlayerInviteEmail({
   teamName,
   expiresAt,
   inviterName = 'ELITE Beerpong',
-  supportEmail = 'support@elitebeerpong.hu',
+  supportEmail = 'sorpingpong@gmail.com',
 }: PlayerInviteEmailProps) {
   const backendBase = process.env.BACKEND_PUBLIC_URL || `http://localhost:${process.env.BACKEND_PORT || 3555}`;
   const logoUrl = `${backendBase}/uploads/logo.svg`;
@@ -103,7 +103,7 @@ PlayerInviteEmail.PreviewProps = {
   teamName: 'Csapat',
   expiresAt: '2025-12-31 23:59',
   inviterName: 'ELITE Beerpong',
-  supportEmail: 'support@elitebeerpong.hu',
+  supportEmail: 'sorpingpong@gmail.com',
 }
 
 
