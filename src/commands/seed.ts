@@ -269,17 +269,17 @@ async function main() {
   try {
     await auth.api.createUser({
       body: {
-        email: "admin@admin.com",
-        password: "admin",
+        email: "info@sorpingpong.hu",
+        password: "HashtagRolo89",
         name: "Admin",
         role: "admin",
         data: { nickname: "Admin", lang: "hu" },
       },
     } as any);
-    console.log("Admin user created (admin@admin.com / admin)");
+    console.log("Admin user created");
   } catch (e: any) {
     // If already exists, ensure role
-    const [existing] = await db.select().from(userTable).where(eq(userTable.email, "admin@admin.com"));
+    const [existing] = await db.select().from(userTable).where(eq(userTable.email, "info@sorpingpong.hu"));
     if (existing) {
       await db.update(userTable)
         .set({ role: "admin", nickname: existing.nickname ?? "Admin", name: existing.name ?? "Admin" })
