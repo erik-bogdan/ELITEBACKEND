@@ -22,7 +22,7 @@ export class EmailService {
 
   static async send(options: SendEmailOptions) {
     const transporter = EmailService.createTransport();
-    const from = 'no-reply@sorpingpong.hu';
+    const from = options.from || process.env.MAIL_FROM || process.env.SMTP_USER || 'no-reply@elitebeerpong.hu';
     const html = options.html || (options.react ? await render(options.react) : undefined);
     const info = await transporter.sendMail({ from, to: options.to, subject: options.subject, html, text: options.text });
     return { messageId: info.messageId };
