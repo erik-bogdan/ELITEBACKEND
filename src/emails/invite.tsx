@@ -31,7 +31,7 @@ export default function TeamInviteEmail({
       <Preview>{championshipName} - Üdv az új szezonban</Preview>
       <Tailwind>
         <Body className="bg-[#0b1221] font-sans" style={{ margin: 0, padding: 0 }}>
-          <Container className="bg-white rounded-2xl overflow-hidden" style={{ width: '100%', maxWidth: '640px', margin: '32px auto' }}>
+          <Container className="bg-white rounded-2xl overflow-hidden" style={{ width: '640px', maxWidth: '640px', margin: '32px auto' }}>
             <Section
               className="px-6 py-6 text-white text-center"
               style={{
