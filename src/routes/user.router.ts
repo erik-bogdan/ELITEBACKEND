@@ -210,7 +210,7 @@ userRouter.get('/profile/stats', async ({ request, set }) => {
     const countFinale = (gamedayMvps as any[]).filter(r => (r.mvpType || 1) === 2 || r.gameDay === 0).length;
 
     // Return full URL for the player image
-    const backendUrl = process.env.BACKEND_URL || 'http://localhost:3555';
+    const backendUrl = process.env.BACKEND_PUBLIC_URL || 'http://localhost:3555';
     const fullImageUrl = pl.image ? `${backendUrl}${pl.image}` : `${backendUrl}/uploads/player-images/default.png`;
 
     return {
