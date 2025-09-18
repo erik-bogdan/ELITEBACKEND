@@ -80,7 +80,12 @@ export async function getPlayerById(id: string): Promise<Player> {
   if (!player) {
     throw new Error('Player not found');
   }
-  return player as Player;
+  const backendUrl = process.env.BACKEND_URL || 'http://localhost:3555';
+  
+  return {
+    ...player,
+    image: player.image ? `${backendUrl}${player.image}` : `${backendUrl}/uploads/player-images/default.png`
+  } as Player;
 }
 
 export async function getPlayerSeasons(playerId: string): Promise<Array<{ seasonId: string; seasonName: string; teamId: string; teamName: string }>> {
@@ -102,12 +107,22 @@ export async function getPlayerSeasons(playerId: string): Promise<Array<{ season
 
 export async function getPlayersByTeam(teamId: string): Promise<Player[]> {
   const result = await db.select().from(players).where(eq(players.teamId, teamId));
-  return result as Player[];
+  const backendUrl = process.env.BACKEND_URL || 'http://localhost:3555';
+  
+  return (result as Player[]).map(player => ({
+    ...player,
+    image: player.image ? `${backendUrl}${player.image}` : `${backendUrl}/uploads/player-images/default.png`
+  }));
 }
 
 export async function getAllPlayers(): Promise<Player[]> {
   const result = await db.select().from(players);
-  return result as Player[];
+  const backendUrl = process.env.BACKEND_URL || 'http://localhost:3555';
+  
+  return (result as Player[]).map(player => ({
+    ...player,
+    image: player.image ? `${backendUrl}${player.image}` : `${backendUrl}/uploads/player-images/default.png`
+  }));
 }
 
 export async function getPlayersBySeason(seasonId: string): Promise<Player[]> {
@@ -129,7 +144,13 @@ export async function getPlayersBySeason(seasonId: string): Promise<Player[]> {
     .from(teamPlayers)
     .innerJoin(players, eq(teamPlayers.playerId, players.id))
     .where(eq(teamPlayers.seasonId, seasonId));
-  return result as unknown as Player[];
+  
+  const backendUrl = process.env.BACKEND_URL || 'http://localhost:3555';
+  
+  return (result as unknown as Player[]).map(player => ({
+    ...player,
+    image: player.image ? `${backendUrl}${player.image}` : `${backendUrl}/uploads/player-images/default.png`
+  }));
 }
 
 export async function updatePlayer(id: string, data: {

@@ -211,7 +211,7 @@ userRouter.get('/profile/stats', async ({ request, set }) => {
 
     // Return full URL for the player image
     const backendUrl = process.env.BACKEND_URL || 'http://localhost:3555';
-    const fullImageUrl = pl.image ? `${backendUrl}${pl.image}` : null;
+    const fullImageUrl = pl.image ? `${backendUrl}${pl.image}` : `${backendUrl}/uploads/player-images/default.png`;
 
     return {
       playerId: pl.id,
