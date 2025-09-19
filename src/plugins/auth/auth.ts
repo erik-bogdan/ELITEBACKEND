@@ -21,6 +21,7 @@ export const auth = betterAuth({
     plugins: [
         admin(),
         magicLink({
+            expiresIn: 7 * 24 * 60 * 60,
             async sendMagicLink({ email, url, token }) {
                 const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3001';
                 let inviteToken: string | null = null;
