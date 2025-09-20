@@ -205,9 +205,28 @@ export const applyRouter = new Elysia({ prefix: '/api/apply' })
                 const token = nanoid(48);
                 const expiresAt = new Date(Date.now() + 1000 * 60 * 60 * 24 * 7);
                 await tx.insert(playerInvitations).values({ playerId: pid, email: p.email, token, expiresAt, status: 'pending' });
-                const backendUrl = process.env.BACKEND_PUBLIC_URL || `http://localhost:${process.env.BACKEND_PORT || 3000}`;
-                const callbackURL = `${backendUrl}/api/players/link-invite?token=${token}`;
-                try { await fetch(`${backendUrl}/api/auth/sign-in/magic-link`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: p.email, callbackURL }) }); } catch {}
+                // Send direct email with invite link (no magic link)
+                const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3001';
+                const inviteUrl = `${frontendUrl}/auth/accept-invite?token=${encodeURIComponent(token)}`;
+                
+                // Send email using our email service
+                try {
+                  const { EmailService } = await import('../services/email.service');
+                  const PlayerInviteEmail = (await import('../emails/player-invite')).default;
+                  
+                  await EmailService.send({
+                    to: p.email,
+                    subject: 'Játékos meghívás - ELITE Beerpong',
+                    react: PlayerInviteEmail({
+                      inviteUrl,
+                      recipientName: p.firstName || p.nickname,
+                      teamName: newTeamName,
+                      expiresAt: expiresAt.toLocaleDateString('hu-HU'),
+                      inviterName: 'ELITE Beerpong',
+                      supportEmail: 'sorpingpong@gmail.com'
+                    })
+                  });
+                } catch {}
               }
             }
           } else {
@@ -363,9 +382,28 @@ export const applyRouter = new Elysia({ prefix: '/api/apply' })
                 const token = nanoid(48);
                 const expiresAt = new Date(Date.now() + 1000 * 60 * 60 * 24 * 7);
                 await tx.insert(playerInvitations).values({ playerId: pid, email: p.email, token, expiresAt, status: 'pending' });
-                const backendUrl = process.env.BACKEND_PUBLIC_URL || `http://localhost:${process.env.BACKEND_PORT || 3000}`;
-                const callbackURL = `${backendUrl}/api/players/link-invite?token=${token}`;
-                try { await fetch(`${backendUrl}/api/auth/sign-in/magic-link`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: p.email, callbackURL }) }); } catch {}
+                // Send direct email with invite link (no magic link)
+                const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3001';
+                const inviteUrl = `${frontendUrl}/auth/accept-invite?token=${encodeURIComponent(token)}`;
+                
+                // Send email using our email service
+                try {
+                  const { EmailService } = await import('../services/email.service');
+                  const PlayerInviteEmail = (await import('../emails/player-invite')).default;
+                  
+                  await EmailService.send({
+                    to: p.email,
+                    subject: 'Játékos meghívás - ELITE Beerpong',
+                    react: PlayerInviteEmail({
+                      inviteUrl,
+                      recipientName: p.firstName || p.nickname,
+                      teamName: newTeamName,
+                      expiresAt: expiresAt.toLocaleDateString('hu-HU'),
+                      inviterName: 'ELITE Beerpong',
+                      supportEmail: 'sorpingpong@gmail.com'
+                    })
+                  });
+                } catch {}
               }
             }
           } else {

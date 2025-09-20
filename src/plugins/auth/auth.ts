@@ -23,82 +23,39 @@ export const auth = betterAuth({
         magicLink({
             expiresIn: 7 * 24 * 60 * 60,
             async sendMagicLink({ email, url, token }) {
-                const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3001';
-                let inviteToken: string | null = null;
-                let champName: string | undefined;
-                let teamName: string | undefined;
-                let recipientName: string | undefined;
+                // Only send magic link emails for admin functions (set-password, etc.)
+                // Player invites now use direct email system
                 try {
                     const u = new URL(url);
                     const cb = u.searchParams.get('callbackURL');
-                    if (cb) {
-                        const cbu = new URL(cb);
-                        inviteToken = cbu.searchParams.get('token');
-                        champName = cbu.searchParams.get('champ');
-                        teamName = cbu.searchParams.get('team');
+                    
+                    // Check if this is an admin function (set-password, etc.)
+                    const isAdminFunction = cb && cb.includes('/auth/set-password');
+                    
+                    if (!isAdminFunction) {
+                        // Skip sending email for player invites - they use direct email system now
+                        return;
                     }
-                } catch {}
-                // If we have an invite token, try to resolve recipient name from player
-                if (inviteToken) {
-                    try {
-                        const invites = await db.select().from(playerInvitations).where(eq(playerInvitations.token, inviteToken));
-                        const inv = invites?.[0];
-                        if (inv) {
-                            const players = await db.select().from(schema.players).where(eq(schema.players.id, inv.playerId));
-                            const pl: any = players?.[0];
-                            if (pl) {
-                                const first = (pl.firstName ?? '').toString().trim();
-                                if (first) recipientName = first;
-                                else if (pl.nickname) recipientName = String(pl.nickname).split(' ')[0];
-                                else recipientName = undefined;
-                            }
-                        }
-                    } catch {}
-                }
-
-                const frontendInvite = inviteToken
-                    ? `${frontendUrl}/auth/accept-invite?ba=${encodeURIComponent(token)}&invite=${encodeURIComponent(inviteToken)}`
-                    : `${frontendUrl}/auth/accept-invite?ba=${encodeURIComponent(token)}`;
-                try {
-                    const isTeamFlow = Boolean(champName || teamName); // if callback carried league/team context → team invite
+                    
+                    // Send magic link email only for admin functions
+                    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3001';
+                    const magicLinkUrl = `${frontendUrl}/auth/accept-invite?ba=${encodeURIComponent(token)}`;
+                    
                     await EmailService.send({
                         to: email,
-                        subject: isTeamFlow
-                          ? `${champName || 'ELITE Beerpong'} - Meghívó${teamName ? ` (${teamName})` : ''}`
-                          : `Játékos meghívás`,
-                        react: isTeamFlow
-                          ? TeamInviteEmail({
-                              championshipName: champName || 'ELITE Beerpong',
-                              teamName: teamName || '',
-                              inviteUrl: frontendInvite,
-                              recipientName,
-                              expiresAt: '',
-                              inviterName: 'ELITE Beerpong',
-                              supportEmail: 'sorpingpong@gmail.com',
-                            } as any)
-                          : PlayerInviteEmail({
-                              inviteUrl: frontendInvite,
-                              recipientName,
-                              teamName: teamName,
-                              expiresAt: '',
-                              inviterName: 'ELITE Beerpong',
-                              supportEmail: 'sorpingpong@gmail.com',
-                            } as any) as any,
+                        subject: 'ELITE Beerpong - Bejelentkezés',
+                        react: PlayerInviteEmail({
+                            inviteUrl: magicLinkUrl,
+                            recipientName: 'Felhasználó',
+                            teamName: undefined,
+                            expiresAt: '',
+                            inviterName: 'ELITE Beerpong',
+                            supportEmail: 'sorpingpong@gmail.com',
+                        } as any),
                     });
                 } catch (err) {
                     console.error('Failed to send magic-link email', { email }, err);
                 }
-            },
-            // ensure new users have default profile fields
-            onSignIn: async ({ user }) => {
-                // If nickname or name is missing, try to populate with empty defaults to satisfy NOT NULL constraints
-                try {
-                    const safeNickname = user.nickname ?? '';
-                    const safeName = user.name ?? '';
-                    await db.update(schema.user)
-                      .set({ nickname: safeNickname, name: safeName })
-                      .where(eq(schema.user.id, user.id));
-                } catch {}
             }
         })
     ],

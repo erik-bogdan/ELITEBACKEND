@@ -1,6 +1,6 @@
 import { Elysia, t } from 'elysia';
 import { db } from '../db';
-import { players, playerInvitations, user, teamPlayers } from '../database/schema';
+import { players, playerInvitations, user, teamPlayers, teams } from '../database/schema';
 import { ilike, or, and, eq, isNull, inArray } from 'drizzle-orm';
 import {
   createPlayer,
@@ -133,7 +133,7 @@ export const playerRouter = new Elysia({ prefix: '/api/players' })
     }
   })
 
-  // Send or resend a player invite via Better Auth magic link flow
+  // Send or resend a player invite via direct email (no magic link)
   .post('/:id/invite', async ({ params, set }) => {
     try {
       const [p] = await db.select().from(players).where(eq(players.id, params.id));
@@ -154,14 +154,34 @@ export const playerRouter = new Elysia({ prefix: '/api/players' })
           .values({ playerId: p.id, email: p.email, token, expiresAt, status: 'pending' });
       }
 
-      // Trigger Better Auth magic-link email to p.email with callback carrying invite token
-      const backendUrl = process.env.BACKEND_PUBLIC_URL || `http://localhost:${process.env.BACKEND_PORT || 3000}`;
-      const callbackURL = `${backendUrl}/api/players/link-invite?token=${encodeURIComponent(token)}`;
-      await fetch(`${backendUrl}/api/auth/sign-in/magic-link`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: p.email, callbackURL })
+      // Send direct email with invite link (no magic link)
+      const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3001';
+      const inviteUrl = `${frontendUrl}/auth/accept-invite?token=${encodeURIComponent(token)}`;
+      
+      // Get team name for email
+      let teamName: string | undefined;
+      if (p.teamId) {
+        const [team] = await db.select().from(teams).where(eq(teams.id, p.teamId));
+        teamName = team?.name;
+      }
+
+      // Send email using our email service
+      const { EmailService } = await import('../../services/email.service');
+      const PlayerInviteEmail = (await import('../../emails/player-invite')).default;
+      
+      await EmailService.send({
+        to: p.email,
+        subject: 'Játékos meghívás - ELITE Beerpong',
+        react: PlayerInviteEmail({
+          inviteUrl,
+          recipientName: p.firstName || p.nickname,
+          teamName,
+          expiresAt: expiresAt.toLocaleDateString('hu-HU'),
+          inviterName: 'ELITE Beerpong',
+          supportEmail: 'sorpingpong@gmail.com'
+        })
       });
+
       return { success: true };
     } catch (e) {
       set.status = 500; return { error: true, message: 'Failed to send invite' };
@@ -260,7 +280,176 @@ export const playerRouter = new Elysia({ prefix: '/api/players' })
       tags: ['Players']
     }
   })
-  // Accept player invite and link user to player
+  // Validate invite token and get player data for registration
+  .get('/validate-invite/:token', async ({ params, set }) => {
+    try {
+      const token = params.token;
+      if (!token) {
+        set.status = 400;
+        return { error: true, message: 'Hiányzó meghívó token' };
+      }
+
+      const [invite] = await db.select().from(playerInvitations).where(eq(playerInvitations.token, token));
+      if (!invite) {
+        set.status = 404;
+        return { error: true, message: 'Érvénytelen meghívó' };
+      }
+
+      if (invite.expiresAt && new Date(invite.expiresAt) < new Date()) {
+        set.status = 400;
+        return { error: true, message: 'A meghívó lejárt' };
+      }
+
+      if (invite.status !== 'pending') {
+        set.status = 400;
+        return { error: true, message: 'A meghívó már felhasználva!' };
+      }
+
+      // Get player data
+      const [player] = await db.select().from(players).where(eq(players.id, invite.playerId));
+      if (!player) {
+        set.status = 404;
+        return { error: true, message: 'Játékos nem található' };
+      }
+
+      // Get team name if player has team
+      let teamName: string | undefined;
+      if (player.teamId) {
+        const [team] = await db.select().from(teams).where(eq(teams.id, player.teamId));
+        teamName = team?.name;
+      }
+
+      return {
+        success: true,
+        data: {
+          token,
+          email: invite.email,
+          nickname: player.nickname,
+          firstName: player.firstName,
+          lastName: player.lastName,
+          fullName: [player.firstName, player.lastName].filter(Boolean).join(' ').trim() || player.nickname,
+          teamName,
+          expiresAt: invite.expiresAt
+        }
+      };
+    } catch (e) {
+      console.error('Validate invite error:', e);
+      set.status = 500;
+      return { error: true, message: 'Internal error', details: e instanceof Error ? e.message : 'Unknown error' };
+    }
+  }, {
+    params: t.Object({ token: t.String() }),
+    detail: { summary: 'Validate invite token and get player data', tags: ['Players'] },
+    beforeHandle: ({}) => {} // Public endpoint
+  })
+
+  // Accept player invite and register user
+  .post('/accept-invite', async ({ request, body, set }) => {
+    try {
+      const { token, password, email, name, nickname } = body as any;
+      
+      if (!token || !password || !email || !name) {
+        set.status = 400;
+        return { error: true, message: 'Missing required fields' };
+      }
+
+      if (password.length < 8) {
+        set.status = 400;
+        return { error: true, message: 'Password must be at least 8 characters' };
+      }
+
+      // Validate invite token
+      const [invite] = await db.select().from(playerInvitations).where(eq(playerInvitations.token, token));
+      if (!invite) {
+        set.status = 400;
+        return { error: true, message: 'Invalid token' };
+      }
+
+      if (invite.expiresAt && new Date(invite.expiresAt) < new Date()) {
+        set.status = 400;
+        return { error: true, message: 'Token expired' };
+      }
+
+      if (invite.status !== 'pending') {
+        set.status = 400;
+        return { error: true, message: 'Invite already used' };
+      }
+
+      // Check if email matches
+      if (invite.email !== email) {
+        set.status = 400;
+        return { error: true, message: 'Email mismatch' };
+      }
+
+      // Create user account using Better Auth
+      const backendUrl = process.env.BACKEND_PUBLIC_URL || `http://localhost:${process.env.BACKEND_PORT || 3000}`;
+      const signUpResponse = await fetch(`${backendUrl}/api/auth/sign-up/email`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email,
+          password,
+          name,
+          nickname: nickname || name // Use nickname if provided, otherwise use name
+        })
+      });
+
+      if (!signUpResponse.ok) {
+        const errorData = await signUpResponse.json();
+        set.status = 400;
+        return { error: true, message: errorData.message || 'Failed to create account' };
+      }
+
+      const signUpData = await signUpResponse.json();
+      const userId = signUpData.user?.id;
+
+      if (!userId) {
+        set.status = 500;
+        return { error: true, message: 'Failed to get user ID' };
+      }
+
+      // Link user to player
+      await db.update(players).set({ userId }).where(eq(players.id, invite.playerId));
+
+      // Update player with provided name
+      const nameParts = name.trim().split(' ');
+      const firstName = nameParts[0] || '';
+      const lastName = nameParts.slice(1).join(' ') || '';
+      
+      await db.update(players).set({
+        firstName: firstName || null,
+        lastName: lastName || null,
+        nickname: name
+      }).where(eq(players.id, invite.playerId));
+
+      // Mark invitation accepted
+      await db.update(playerInvitations).set({ 
+        status: 'accepted', 
+        updatedAt: new Date() 
+      }).where(eq(playerInvitations.id, invite.id));
+
+      return { 
+        success: true, 
+        message: 'Account created and invite accepted successfully',
+        userId 
+      };
+    } catch (e) {
+      console.error('Accept invite error:', e);
+      set.status = 500;
+      return { error: true, message: 'Internal error' };
+    }
+  }, {
+    body: t.Object({ 
+      token: t.String(),
+      password: t.String(),
+      email: t.String(),
+      name: t.String()
+    }),
+    detail: { summary: 'Accept player invitation and register user', tags: ['Players'] },
+    beforeHandle: ({}) => {} // Public endpoint
+  })
+
+  // Accept player invite and link user to player (for old magic link flow)
   .post('/link-invite', async ({ request, body, set }) => {
     try {
       const token = (body as any)?.token as string;
@@ -268,6 +457,14 @@ export const playerRouter = new Elysia({ prefix: '/api/players' })
         set.status = 400;
         return { error: true, message: 'Missing token' };
       }
+      
+      // Require an active session (user is authenticated via magic link)
+      const session = await auth.api.getSession({ headers: request.headers });
+      if (!session) {
+        set.status = 401;
+        return { error: true, message: 'Unauthorized' };
+      }
+      
       const [invite] = await db.select().from(playerInvitations).where(eq(playerInvitations.token, token));
       if (!invite) {
         set.status = 400;
@@ -277,51 +474,10 @@ export const playerRouter = new Elysia({ prefix: '/api/players' })
         set.status = 400;
         return { error: true, message: 'Token expired' };
       }
-      // When using magic link, the user is already authenticated by Better Auth.
-      // If user does not exist yet, Better Auth created it on verify. We only need to mark invite accepted.
-      // Mark invitation accepted
-      await db.update(playerInvitations).set({ status: 'accepted', updatedAt: new Date() }).where(eq(playerInvitations.id, invite.id));
-      return { success: true };
-    } catch (e) {
-      set.status = 500;
-      return { error: true, message: 'Internal error' };
-    }
-  }, {
-    body: t.Object({ token: t.String() }),
-    detail: { summary: 'Accept player invitation and link user', tags: ['Players'] },
-    // Make route public (no auth guard)
-    beforeHandle: ({}) => {}
-  })
-  .get('/link-invite', async ({ request, query, set }) => {
-    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3001';
-    const backendUrl = process.env.BACKEND_PUBLIC_URL || `http://localhost:${process.env.BACKEND_PORT || 3000}`;
-    try {
-      const token = (query as any)?.token || (query as any)?.invite;
-      if (!token) {
-        set.status = 302;
-        set.headers['Location'] = `${frontendUrl}/auth/link-player?result=error&reason=missing-token`;
-        return;
-      }
-      // Require an active session here (this endpoint is the callbackURL from Better Auth magic link verify)
-      const session = await auth.api.getSession({ headers: request.headers });
-      if (!session) {
-        set.status = 302;
-        set.headers['Location'] = `${frontendUrl}/auth/link-player?result=error&reason=unauthorized`;
-        return;
-      }
-      const [invite] = await db.select().from(playerInvitations).where(eq(playerInvitations.token, String(token)));
-      if (!invite) {
-        set.status = 302;
-        set.headers['Location'] = `${frontendUrl}/auth/link-player?result=error&reason=invalid-token`;
-        return;
-      }
-      if (invite.expiresAt && new Date(invite.expiresAt) < new Date()) {
-        set.status = 302;
-        set.headers['Location'] = `${frontendUrl}/auth/link-player?result=error&reason=expired`;
-        return;
-      }
+      
       // Link user to player
       await db.update(players).set({ userId: session.user.id }).where(eq(players.id, invite.playerId));
+      
       // Enrich user profile from player record (nickname, full name)
       try {
         const [p] = await db.select().from(players).where(eq(players.id, invite.playerId));
@@ -335,20 +491,17 @@ export const playerRouter = new Elysia({ prefix: '/api/players' })
             .where(eq(user.id, session.user.id));
         }
       } catch {}
+      
+      // Mark invitation accepted
       await db.update(playerInvitations).set({ status: 'accepted', updatedAt: new Date() }).where(eq(playerInvitations.id, invite.id));
-      // If leagueTeamId present in query (?lt=...), redirect to a targeted accept flow on FE with context
-      const leagueTeamId = (query as any)?.lt as string | undefined;
-      set.status = 302;
-      set.headers['Location'] = leagueTeamId
-        ? `${frontendUrl}/auth/set-password?invite=1&lt=${encodeURIComponent(leagueTeamId)}`
-        : `${frontendUrl}/auth/set-password?invite=1`;
-      return;
-    } catch {
-      set.status = 302;
-      set.headers['Location'] = `${frontendUrl}/auth/link-player?result=error`;
-      return;
+      
+      return { success: true };
+    } catch (e) {
+      set.status = 500;
+      return { error: true, message: 'Internal error' };
     }
   }, {
-    query: t.Object({ token: t.Optional(t.String()), invite: t.Optional(t.String()) }),
-    detail: { summary: 'Accept invite via GET and redirect to FE', tags: ['Players'] }
-  });
+    body: t.Object({ token: t.String() }),
+    detail: { summary: 'Accept player invitation and link user (old magic link flow)', tags: ['Players'] },
+    beforeHandle: ({}) => {} // Public endpoint
+  })

@@ -61,14 +61,26 @@ export async function createPlayer(data: {
       expiresAt,
       status: 'pending'
     });
-    // trigger magic link to the same email with callback to link page carrying invite token
-    const backendUrl = process.env.BACKEND_PUBLIC_URL || `http://localhost:${process.env.BACKEND_PORT || 3000}`;
-    const callbackURL = `${backendUrl}/api/players/link-invite?token=${token}`;
-    // Trigger magic link email via HTTP to Better Auth handler
-    await fetch(`${backendUrl}/api/auth/sign-in/magic-link`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email: data.email, callbackURL })
+    
+    // Send direct email with invite link (no magic link)
+    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3001';
+    const inviteUrl = `${frontendUrl}/auth/accept-invite?token=${encodeURIComponent(token)}`;
+    
+    // Send email using our email service
+    const { EmailService } = await import('../email.service');
+    const PlayerInviteEmail = (await import('../../emails/player-invite')).default;
+    
+    await EmailService.send({
+      to: data.email,
+      subject: 'Játékos meghívás - ELITE Beerpong',
+      react: PlayerInviteEmail({
+        inviteUrl,
+        recipientName: data.firstName || data.nickname,
+        teamName: undefined, // Will be set when player is assigned to team
+        expiresAt: expiresAt.toLocaleDateString('hu-HU'),
+        inviterName: 'ELITE Beerpong',
+        supportEmail: 'sorpingpong@gmail.com'
+      })
     });
   }
 

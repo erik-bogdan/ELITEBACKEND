@@ -280,16 +280,28 @@ export const championshipRouter = new Elysia({ prefix: '/api/championship' })
         status: 'pending'
       });
 
-      // Trigger Better Auth magic-link email by calling BA sign-in
-      const backendUrl = process.env.BACKEND_PUBLIC_URL || `http://localhost:${process.env.BACKEND_PORT || 3000}`;
-      const callbackURL = `${backendUrl}/api/players/link-invite?token=${encodeURIComponent(inviteToken)}&champ=${encodeURIComponent(`${league.name}${league.subName ? ' ' + league.subName : ''}`)}&team=${encodeURIComponent(team.name || '')}&lt=${encodeURIComponent(leagueTeamId)}`;
+      // Send direct email with invite link (no magic link)
+      const frontendUrlForEmail = process.env.FRONTEND_URL || 'http://localhost:3001';
+      const inviteUrl = `${frontendUrlForEmail}/auth/accept-invite?token=${encodeURIComponent(inviteToken)}`;
+      
       try {
-        const baRes = await fetch(`${backendUrl}/api/auth/sign-in/magic-link`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ email: cap.email, callbackURL })
+        const { EmailService } = await import('../services/email.service');
+        const TeamInviteEmail = (await import('../emails/invite')).default;
+        
+        const championshipName = `${league.name}${league.subName ? ' ' + league.subName : ''}`;
+        await EmailService.send({
+          to: cap.email,
+          subject: `${championshipName} - Meghívó${team.name ? ` (${team.name})` : ''}`,
+          react: TeamInviteEmail({
+            championshipName,
+            teamName: team.name || '',
+            inviteUrl,
+            recipientName: cap.firstName || cap.nickname,
+            expiresAt: expiresAt.toLocaleDateString('hu-HU'),
+            inviterName: 'ELITE Beerpong',
+            supportEmail: 'sorpingpong@gmail.com',
+          } as any)
         });
-        if (!baRes.ok) throw new Error('Magic link request failed');
 
         // Mark invite sent
         await db.update(leagueTeams)
