@@ -140,22 +140,45 @@ export const adminUsersRouter = new Elysia({ prefix: '/api/admin/users' })
     params: t.Object({ id: t.String(), playerId: t.String() })
   })
 
-  // Attempt direct password reset for a user; if not supported, return error
+  // Set password for a user (admin function - no current password required)
   .post('/:id/password', async ({ request, params, body, set }) => {
     const session = await auth.api.getSession({ headers: request.headers });
     if (!session) { set.status = 401; return { error: true, message: 'Unauthorized' }; }
     const { id } = params as any;
     const { newPassword } = body as any;
-    try {
-      // Not all adapters support admin-set password. Expose graceful error if not available.
-      const anyApi: any = auth.api as any;
-      if (typeof anyApi.adminSetPassword === 'function') {
-        await anyApi.adminSetPassword({ body: { userId: id, password: newPassword } });
-        try { await LoggingService.logCustom(session.user.id, 'user', `Jelszó módosítva a felhasználónál: ${id}`, { userId: id }); } catch {}
-        return { success: true };
-      }
+    
+    if (!newPassword || newPassword.length < 8) {
       set.status = 400;
-      return { error: true, message: 'Direct password set not supported; use magic link flow' };
+      return { error: true, message: 'Password must be at least 8 characters' };
+    }
+    
+    try {
+      // Check if user exists
+      const [user] = await db.select().from(userTable).where(eq(userTable.id, id));
+      if (!user) {
+        set.status = 404;
+        return { error: true, message: 'User not found' };
+      }
+      
+      // Use Better Auth setUserPassword API (admin function)
+      try {
+        await auth.api.setUserPassword({
+          body: {
+            newPassword: newPassword,
+            userId: id
+          },
+          headers: request.headers
+        });
+        
+        try { 
+          await LoggingService.logCustom(session.user.id, 'user', `Jelszó módosítva a felhasználónál: ${user.email}`, { userId: id }); 
+        } catch {}
+        
+        return { success: true };
+      } catch (setPasswordError: any) {
+        set.status = 400;
+        return { error: true, message: setPasswordError.message || 'Failed to set password' };
+      }
     } catch (e: any) {
       set.status = 400;
       return { error: true, message: e?.message || 'Failed to set password' };

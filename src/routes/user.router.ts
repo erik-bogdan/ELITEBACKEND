@@ -5,7 +5,6 @@ import { auth } from '../plugins/auth/auth';
 import { db } from '../db';
 import { players, seasons, teamPlayers, leagueTeams, leagues, teams, matches, playerGamedayMvps, playerInvitations } from '../database/schema';
 import { eq } from 'drizzle-orm';
-import { Elysia } from 'elysia';
 import { randomUUID } from 'crypto';
 
 export const userRouter = new Elysia({ prefix: '/api/user' })
@@ -123,7 +122,7 @@ userRouter.put('/profile/password', async ({ request, body, set }) => {
     const userId = session?.user?.id as string | undefined;
     if (!userId) { set.status = 401; return { error: true, message: 'Unauthorized' }; }
     // Use better-auth email/password API
-    await auth.api.updatePassword({ headers: request.headers, body: { currentPassword: (body as any).currentPassword, newPassword: (body as any).newPassword } });
+    await auth.api.changePassword({ headers: request.headers, body: { currentPassword: (body as any).currentPassword, newPassword: (body as any).newPassword } });
     return { success: true };
   } catch (error) {
     set.status = 400; return { error: true, message: error instanceof Error ? error.message : 'Unknown error' };
