@@ -139,18 +139,23 @@ export async function getMatchesByLeague(leagueId: string) {
 }
 
 export async function getMatchById(matchId: string) {
+  const homeTeams = alias(teams, 'home_teams');
+  const awayTeams = alias(teams, 'away_teams');
+  const homeMvp = alias(players, 'home_mvp');
+  const awayMvp = alias(players, 'away_mvp');
+
   const [match] = await db.select({
     match: matches,
-    homeTeam: teams,
-    awayTeam: teams,
-    homeTeamBestPlayer: players,
-    awayTeamBestPlayer: players
+    homeTeam: homeTeams,
+    awayTeam: awayTeams,
+    homeTeamBestPlayer: homeMvp,
+    awayTeamBestPlayer: awayMvp
   })
   .from(matches)
-  .leftJoin(teams, eq(matches.homeTeamId, teams.id))
-  .leftJoin(teams, eq(matches.awayTeamId, teams.id))
-  .leftJoin(players, eq(matches.homeTeamBestPlayerId, players.id))
-  .leftJoin(players, eq(matches.awayTeamBestPlayerId, players.id))
+  .leftJoin(homeTeams, eq(matches.homeTeamId, homeTeams.id))
+  .leftJoin(awayTeams, eq(matches.awayTeamId, awayTeams.id))
+  .leftJoin(homeMvp, eq(matches.homeTeamBestPlayerId, homeMvp.id))
+  .leftJoin(awayMvp, eq(matches.awayTeamBestPlayerId, awayMvp.id))
   .where(eq(matches.id, matchId));
 
   if (!match) {
