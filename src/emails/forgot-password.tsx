@@ -15,7 +15,7 @@ export default function ForgotPasswordEmail({
   supportEmail = 'sorpingpong@gmail.com',
 }: ForgotPasswordEmailProps) {
   const backendBase = process.env.BACKEND_PUBLIC_URL || `http://localhost:${process.env.BACKEND_PORT || 3555}`;
-  const logoUrl = `${backendBase}/uploads/logo.svg`;
+  const logoUrl = `${backendBase}/uploads/logo.png`;
   const bgUrl = `${backendBase}/uploads/bg.png`;
   return (
     <Html>
