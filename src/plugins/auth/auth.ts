@@ -7,6 +7,7 @@ import { playerInvitations } from "../../database/schema";
 import { eq } from "drizzle-orm";
 import TeamInviteEmail from "../../emails/invite";
 import PlayerInviteEmail from "../../emails/player-invite";
+import ForgotPasswordEmail from "../../emails/forgot-password";
 import { EmailService } from "../../services/email.service";
 
 export const auth = betterAuth({
@@ -17,6 +18,26 @@ export const auth = betterAuth({
     }),
     emailAndPassword: {
         enabled: true,
+        requireEmailVerification: false,
+        sendResetPassword: async ({ user, url, token }) => {
+            try {
+                const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3001';
+                const resetUrl = `${frontendUrl}/auth/reset-password?token=${encodeURIComponent(token)}`;
+                
+                await EmailService.send({
+                    to: user.email,
+                    subject: 'ELITE Beerpong - Jelszó visszaállítás',
+                    react: ForgotPasswordEmail({
+                        resetUrl: resetUrl,
+                        recipientName: user.name || 'Felhasználó',
+                        expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toLocaleString('hu-HU'),
+                        supportEmail: 'sorpingpong@gmail.com',
+                    }),
+                });
+            } catch (err) {
+                console.error('Failed to send password reset email', { email: user.email }, err);
+            }
+        },
     },
     plugins: [
         admin(),
