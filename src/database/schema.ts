@@ -195,6 +195,11 @@ export const matches = pgTable('matches', {
 	trackingStartedAt: timestamp('tracking_started_at'),
 	trackingFinishedAt: timestamp('tracking_finished_at'),
 	trackingData: jsonb('tracking_data'),
+	isDelayed: boolean('is_delayed').notNull().default(false),
+	delayedRound: integer('delayed_round'),
+	delayedDate: timestamp('delayed_date'),
+	delayedTime: timestamp('delayed_time'),
+	delayedTable: integer('delayed_table'),
 	createdAt: timestamp('created_at').defaultNow(),
 	updatedAt: timestamp('updated_at').defaultNow()
 });
