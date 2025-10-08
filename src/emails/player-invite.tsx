@@ -19,7 +19,7 @@ export default function PlayerInviteEmail({
   supportEmail = 'sorpingpong@gmail.com',
 }: PlayerInviteEmailProps) {
   const backendBase = process.env.BACKEND_PUBLIC_URL || `http://localhost:${process.env.BACKEND_PORT || 3555}`;
-  const logoUrl = `${backendBase}/uploads/logo.svg`;
+  const logoUrl = `${backendBase}/uploads/logo.png`;
   const bgUrl = `${backendBase}/uploads/bg.png`;
   return (
     <Html>
@@ -66,9 +66,9 @@ export default function PlayerInviteEmail({
               <Text className="text-sm text-gray-700">Kedves {recipientName},</Text>
               <Text className="text-base leading-6 mt-2">
                 {teamName ? (<>
-                  Meghívást kaptál, hogy csatlakozz a(z) <strong>{teamName}</strong> csapathoz. Az alábbi gombra kattintva elfogadhatod a meghívást és befejezheted a regisztrációt.
+                  Meghívást kaptál, hogy csatlakozz a(z) <strong>{teamName}</strong> csapathoz. Az alábbi gombra kattintva elfogadhatod a meghívást és befejezheted a regisztrációt. 
                 </>) : (
-                  <>Meghívást kaptál, hogy csatlakozz az ELITE Beerpong rendszeréhez. Az alábbi gombra kattintva erősítsd meg a meghívót és fejezd be a regisztrációt.</>
+                  <>Meghívást kaptál, hogy csatlakozz az ELITE Beerpong rendszeréhez. Az alábbi gombra kattintva erősítsd meg a meghívót és fejezd be a regisztrációt. </>
                 )}
               </Text>
 

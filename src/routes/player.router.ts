@@ -1,4 +1,5 @@
 import { Elysia, t } from 'elysia';
+import { nanoid } from 'nanoid';
 import { db } from '../db';
 import { players, playerInvitations, user, teamPlayers, teams } from '../database/schema';
 import { ilike, or, and, eq, isNull, inArray } from 'drizzle-orm';
@@ -141,7 +142,7 @@ export const playerRouter = new Elysia({ prefix: '/api/players' })
       if (!p.email) { set.status = 400; return { error: true, message: 'Player email is required to send invite' }; }
 
       // Create or refresh invitation row
-      const token = crypto.randomUUID();
+      const token = nanoid(48);
       const expiresAt = new Date(Date.now() + 1000 * 60 * 60 * 24 * 7);
       // Upsert by playerId/email: mark previous as pending and overwrite token & dates
       const existing = await db.select().from(playerInvitations).where(eq(playerInvitations.playerId, p.id));
@@ -166,8 +167,8 @@ export const playerRouter = new Elysia({ prefix: '/api/players' })
       }
 
       // Send email using our email service
-      const { EmailService } = await import('../../services/email.service');
-      const PlayerInviteEmail = (await import('../../emails/player-invite')).default;
+      const { EmailService } = await import('../services/email.service');
+      const PlayerInviteEmail = (await import('../emails/player-invite')).default;
       
       await EmailService.send({
         to: p.email,
