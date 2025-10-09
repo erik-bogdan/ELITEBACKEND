@@ -1,2 +1,4 @@
 node_modules
 .env
+uploads/team-logos/*
+uploads/player-images/*
