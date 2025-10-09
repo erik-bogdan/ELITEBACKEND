@@ -72,18 +72,18 @@ export const championshipRouter = new Elysia({ prefix: '/api/championship' })
         const mime = p.endsWith('.woff2') ? 'font/woff2' : 'font/ttf';
         return { dataUri: `data:${mime};base64,${buf.toString('base64')}`, mime };
       }
+      const base = path.join(import.meta.dir, '..', 'uploads', 'fonts');
+
       const fontRegular = await loadFont([
-        path.resolve(process.cwd(), 'uploads', 'fonts', 'BebasNeue-Regular.woff2'),
-        path.resolve(process.cwd(), 'uploads', 'BebasNeue-Regular.woff2'),
-        path.resolve(process.cwd(), 'uploads', 'fonts', 'BebasNeue-Regular.ttf'),
-        path.resolve(process.cwd(), 'uploads', 'BebasNeue-Regular.ttf'),
+        path.join(base, 'BebasNeue-Regular.woff2'),
+        path.join(base, 'BebasNeue-Regular.ttf'),
       ]);
+      
       const fontBold = await loadFont([
-        path.resolve(process.cwd(), 'uploads', 'fonts', 'BebasNeue-Bold.woff2'),
-        path.resolve(process.cwd(), 'uploads', 'BebasNeue-Bold.woff2'),
-        path.resolve(process.cwd(), 'uploads', 'fonts', 'BebasNeue-Bold.ttf'),
-        path.resolve(process.cwd(), 'uploads', 'BebasNeue-Bold.ttf'),
+        path.join(base, 'BebasNeue-Bold.woff2'),
+        path.join(base, 'BebasNeue-Bold.ttf'),
       ]);
+      
       let bgDataUri = '';
       try {
         const buf = await readFile(templatePath);
