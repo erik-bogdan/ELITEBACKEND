@@ -191,7 +191,7 @@ export const championshipRouter = new Elysia({ prefix: '/api/championship' })
         </g>`;
       }).join('');
       const fontFace = `${fontRegular ? `@font-face{font-family:'BebasNeueEmbed';src:url('${fontRegular.dataUri}') format('${fontRegular.mime === 'font/woff2' ? 'woff2' : 'truetype'}');font-weight:400;font-style:normal;}` : ''}
-        ${fontBold ? `@font-face{font-family:'BebasNeueEmbed';src:url('${fontBold.dataUri}') format('${fontBold.mime === 'font/woff2' ? 'woff2' : 'truetype'}');font-weight:700;font-style:normal;}` : ''}`;
+        ${fontBold ? `@font-face{font-family:'BebasNeueEmbed';src:url('${fontBold.dataUri}') format('${fontBold.mime === 'font/woff2' ? 'woff2' : 'truetype'}');font-weight:700;font-style:normal;}` : (fontRegular ? `@font-face{font-family:'BebasNeueEmbed';src:url('${fontRegular.dataUri}') format('${fontRegular.mime === 'font/woff2' ? 'woff2' : 'truetype'}');font-weight:700;font-style:normal;}` : '')}`;
       const rightMargin = 80 * SCALE;
       const titleX = width - rightMargin;
       const titleY = 300 * SCALE;
