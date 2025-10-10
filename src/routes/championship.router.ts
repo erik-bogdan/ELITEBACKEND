@@ -88,6 +88,12 @@ export const championshipRouter = new Elysia({ prefix: '/api/championship' })
         path.resolve(process.cwd(), 'uploads', 'fonts', 'BebasNeue-Bold.woff'),
         path.resolve(process.cwd(), 'uploads', 'BebasNeue-Bold.woff'),
       ]);
+      
+      console.log('Font loading debug:', {
+        regular: fontRegular ? 'LOADED' : 'MISSING',
+        bold: fontBold ? 'LOADED' : 'MISSING',
+        cwd: process.cwd()
+      });
       let bgDataUri = '';
       try {
         const buf = await readFile(templatePath);
