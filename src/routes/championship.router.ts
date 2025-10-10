@@ -58,41 +58,32 @@ export const championshipRouter = new Elysia({ prefix: '/api/championship' })
       const { readFile } = await import('node:fs/promises');
       const path = await import('node:path');
       const templatePath = path.resolve(process.cwd(), 'uploads', 'template.png');
-      // Try to embed Bebas Neue font directly to ensure consistent rendering in resvg
-      async function resolveExistingPath(paths: string[]): Promise<string | null> {
+      // Load fonts as data URIs for embedding in SVG
+      async function loadFont(paths: string[]): Promise<{ dataUri: string; mime: string } | null> {
         for (const p of paths) {
-          try { await readFile(p); return p; } catch { }
+          try {
+            const buf = await readFile(p);
+            const mime = p.endsWith('.woff2') ? 'font/woff2' : 'font/ttf';
+            console.log('Loaded font from:', p);
+            return { dataUri: `data:${mime};base64,${buf.toString('base64')}`, mime };
+          } catch { }
         }
         return null;
       }
-      async function loadFont(paths: string[]): Promise<{ dataUri: string; mime: string } | null> {
-        const p = await resolveExistingPath(paths);
-        if (!p) return null;
-        const buf = await readFile(p);
-        const mime = p.endsWith('.woff2') ? 'font/woff2' : 'font/ttf';
-        return { dataUri: `data:${mime};base64,${buf.toString('base64')}`, mime };
-      }
+      
       const fontRegular = await loadFont([
         path.resolve(process.cwd(), 'uploads', 'fonts', 'BebasNeue-Regular.ttf'),
         path.resolve(process.cwd(), 'uploads', 'fonts', 'BebasNeue-Regular.woff2'),
-        path.resolve(process.cwd(), 'uploads', 'BebasNeue-Regular.ttf'),
-        path.resolve(process.cwd(), 'uploads', 'BebasNeue-Regular.woff2'),
-        path.resolve(process.cwd(), 'uploads', 'fonts', 'BebasNeue-Regular.woff'),
-        path.resolve(process.cwd(), 'uploads', 'BebasNeue-Regular.woff'),
       ]);
+      
       const fontBold = await loadFont([
         path.resolve(process.cwd(), 'uploads', 'fonts', 'BebasNeue-Bold.ttf'),
         path.resolve(process.cwd(), 'uploads', 'fonts', 'BebasNeue-Bold.woff2'),
-        path.resolve(process.cwd(), 'uploads', 'BebasNeue-Bold.ttf'),
-        path.resolve(process.cwd(), 'uploads', 'BebasNeue-Bold.woff2'),
-        path.resolve(process.cwd(), 'uploads', 'fonts', 'BebasNeue-Bold.woff'),
-        path.resolve(process.cwd(), 'uploads', 'BebasNeue-Bold.woff'),
       ]);
       
-      console.log('Font loading debug:', {
+      console.log('Font loading results:', {
         regular: fontRegular ? 'LOADED' : 'MISSING',
-        bold: fontBold ? 'LOADED' : 'MISSING',
-        cwd: process.cwd()
+        bold: fontBold ? 'LOADED' : 'MISSING'
       });
       let bgDataUri = '';
       try {
