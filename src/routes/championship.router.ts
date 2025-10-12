@@ -58,33 +58,35 @@ export const championshipRouter = new Elysia({ prefix: '/api/championship' })
       const { readFile } = await import('node:fs/promises');
       const path = await import('node:path');
       const templatePath = path.resolve(process.cwd(), 'uploads', 'template.png');
-      // Load fonts directly for Resvg registration
-      let regularBuf: Buffer | null = null;
-      let boldBuf: Buffer | null = null;
+      // Get absolute font paths (PM2-safe)
+      const fontDir = path.resolve(process.cwd(), 'uploads', 'fonts');
+      const regularPath = path.join(fontDir, 'BebasNeue-Regular.ttf');
+      const boldPath = path.join(fontDir, 'BebasNeue-Bold.ttf');
+      
+      // Check if font files exist
+      const { access } = await import('node:fs/promises');
+      let regularExists = false;
+      let boldExists = false;
       
       try {
-        regularBuf = await readFile(path.resolve(process.cwd(), 'uploads', 'fonts', 'BebasNeue-Regular.ttf'));
-        console.log('Loaded regular font from:', path.resolve(process.cwd(), 'uploads', 'fonts', 'BebasNeue-Regular.ttf'));
+        await access(regularPath);
+        regularExists = true;
+        console.log('Regular font exists:', regularPath);
       } catch (err) {
-        try {
-          regularBuf = await readFile(path.resolve(process.cwd(), 'uploads', 'fonts', 'BebasNeue-Regular.woff2'));
-          console.log('Loaded regular font from:', path.resolve(process.cwd(), 'uploads', 'fonts', 'BebasNeue-Regular.woff2'));
-        } catch {}
+        console.log('Regular font missing:', regularPath);
       }
       
       try {
-        boldBuf = await readFile(path.resolve(process.cwd(), 'uploads', 'fonts', 'BebasNeue-Bold.ttf'));
-        console.log('Loaded bold font from:', path.resolve(process.cwd(), 'uploads', 'fonts', 'BebasNeue-Bold.ttf'));
+        await access(boldPath);
+        boldExists = true;
+        console.log('Bold font exists:', boldPath);
       } catch (err) {
-        try {
-          boldBuf = await readFile(path.resolve(process.cwd(), 'uploads', 'fonts', 'BebasNeue-Bold.woff2'));
-          console.log('Loaded bold font from:', path.resolve(process.cwd(), 'uploads', 'fonts', 'BebasNeue-Bold.woff2'));
-        } catch {}
+        console.log('Bold font missing:', boldPath);
       }
       
-      console.log('Font loading results:', {
-        regular: regularBuf ? 'LOADED' : 'MISSING',
-        bold: boldBuf ? 'LOADED' : 'MISSING'
+      console.log('Font file check results:', {
+        regular: regularExists ? 'EXISTS' : 'MISSING',
+        bold: boldExists ? 'EXISTS' : 'MISSING'
       });
       let bgDataUri = '';
       try {
@@ -299,28 +301,20 @@ export const championshipRouter = new Elysia({ prefix: '/api/championship' })
       // Dynamic import without static type resolution to avoid lints
       const { Resvg } = await (new Function('p', 'return import(p)'))('@resvg/resvg-js');
       
-      // Prepare font files for Resvg registration
-      const fontFiles: any[] = [];
-      if (regularBuf) {
-        fontFiles.push({
-          data: regularBuf,
-          name: 'Bebas Neue',
-          weight: 400,
-          style: 'normal'
-        });
+      // Prepare font files array with absolute paths
+      const fontFiles: string[] = [];
+      if (regularExists) {
+        fontFiles.push(regularPath);
       }
-      if (boldBuf) {
-        fontFiles.push({
-          data: boldBuf,
-          name: 'Bebas Neue',
-          weight: 700,
-          style: 'normal'
-        });
+      if (boldExists) {
+        fontFiles.push(boldPath);
       }
+      
+      console.log('Font files to register:', fontFiles);
       
       const resvg = new Resvg(svg, {
         background: 'transparent',
-        fonts: {
+        font: {
           loadSystemFonts: false,
           defaultFontFamily: 'Bebas Neue',
           fontFiles: fontFiles
