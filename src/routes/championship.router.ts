@@ -182,17 +182,17 @@ export const championshipRouter = new Elysia({ prefix: '/api/championship' })
         const iconX = startX + nameOffsetX + nameWidth + 6 * SCALE;
         const deltaText = drawChange ? (delta > 0 ? `(+${delta})` : `(${delta})`) : '';
         const imgEl = iconData ? `<image href="${iconData}" x="${iconX}" y="${iconY}" width="${iconW}" height="${iconH}" image-rendering="optimizeQuality" />` : `<rect x="${iconX}" y="${y - 8}" width="18" height="4" rx="2" ry="2" fill="#bfbfbf" />`;
-        const deltaEl = drawChange ? `<text x="${iconX + iconW + 6}" y="${y}" fill="${color}" font-family="BebasNeueEmbed, Bebas Neue, Arial, sans-serif" font-size="${arrowFont}" font-weight="700">${deltaText}</text>` : '';
+        const deltaEl = drawChange ? `<text x="${iconX + iconW + 6}" y="${y}" fill="${color}" font-family="BebasNeueEmbedBold, BebasNeueEmbed, Bebas Neue, Arial, sans-serif" font-size="${arrowFont}" font-weight="bold">${deltaText}</text>` : '';
         return `<g>
-          <text x="${startX}" y="${y}" fill="#ffffff" font-family="BebasNeueEmbed, Bebas Neue, Arial, sans-serif" font-size="${rankFont}" font-weight="700">${idx + 1}.</text>
+          <text x="${startX}" y="${y}" fill="#ffffff" font-family="BebasNeueEmbedBold, BebasNeueEmbed, Bebas Neue, Arial, sans-serif" font-size="${rankFont}" font-weight="bold">${idx + 1}.</text>
           ${logoEl}
-          <text x="${startX + nameOffsetX}" y="${y}" fill="#ffffff" font-family="BebasNeueEmbed, Bebas Neue, Arial, sans-serif" font-size="${nameFont}" font-weight="700">${upper}</text>
+          <text x="${startX + nameOffsetX}" y="${y}" fill="#ffffff" font-family="BebasNeueEmbedBold, BebasNeueEmbed, Bebas Neue, Arial, sans-serif" font-size="${nameFont}" font-weight="bold">${upper}</text>
           ${imgEl}
           ${deltaEl}
         </g>`;
       }).join('');
-      const fontFace = `${fontRegular ? `@font-face{font-family:'BebasNeueEmbed';src:url('${fontRegular.dataUri}') format('${fontRegular.mime === 'font/woff2' ? 'woff2' : 'truetype'}');font-weight:400;font-style:normal;}` : ''}
-        ${fontBold ? `@font-face{font-family:'BebasNeueEmbed';src:url('${fontBold.dataUri}') format('${fontBold.mime === 'font/woff2' ? 'woff2' : 'truetype'}');font-weight:700;font-style:normal;}` : (fontRegular ? `@font-face{font-family:'BebasNeueEmbed';src:url('${fontRegular.dataUri}') format('${fontRegular.mime === 'font/woff2' ? 'woff2' : 'truetype'}');font-weight:700;font-style:normal;}` : '')}`;
+      const fontFace = `${fontRegular ? `@font-face{font-family:BebasNeueEmbed;src:url('${fontRegular.dataUri}');font-weight:normal;font-style:normal;}` : ''}
+        ${fontBold ? `@font-face{font-family:BebasNeueEmbedBold;src:url('${fontBold.dataUri}');font-weight:bold;font-style:normal;}` : (fontRegular ? `@font-face{font-family:BebasNeueEmbedBold;src:url('${fontRegular.dataUri}');font-weight:bold;font-style:normal;}` : '')}`;
       const rightMargin = 80 * SCALE;
       const titleX = width - rightMargin;
       const titleY = 300 * SCALE;
@@ -262,7 +262,7 @@ export const championshipRouter = new Elysia({ prefix: '/api/championship' })
         </style>
         <image href="${bgDataUri}" x="0" y="0" width="${width}" height="${height}" preserveAspectRatio="xMidYMid slice"/>
         ${seasonLogo ? `<image href="${seasonLogo}" x="${seasonX}" y="${seasonY}" width="${seasonW}" height="${seasonH}" preserveAspectRatio="xMidYMid meet" />` : ''}
-        <text x="${titleX}" y="${titleY}" text-anchor="end" fill="#ffffff" font-family="BebasNeueEmbed, Bebas Neue, Arial, sans-serif" font-size="${titleFont}" font-weight="700">GAMEDAY MVP</text>
+        <text x="${titleX}" y="${titleY}" text-anchor="end" fill="#ffffff" font-family="BebasNeueEmbedBold, BebasNeueEmbed, Bebas Neue, Arial, sans-serif" font-size="${titleFont}" font-weight="bold">GAMEDAY MVP</text>
         ${rowsSvg}
         ${mvpImage ? `<image href="${mvpImage.dataUri}" x="${width - mvpImage.w}" y="${height - mvpImage.h}" width="${mvpImage.w}" height="${mvpImage.h}" preserveAspectRatio="xMidYMid meet" />` : ''}
         ${(() => {
@@ -271,7 +271,7 @@ export const championshipRouter = new Elysia({ prefix: '/api/championship' })
             const questionSize = 200 * SCALE;
             const questionX = titleX - 350;
             const questionY = titleY + 350 * SCALE;
-            return `<text x="${questionX}" y="${questionY}" text-anchor="end" fill="#ffffff" font-family="BebasNeueEmbed, Bebas Neue, Arial, sans-serif" font-size="${questionSize}" font-weight="700" opacity="0.8">?</text>`;
+            return `<text x="${questionX}" y="${questionY}" text-anchor="end" fill="#ffffff" font-family="BebasNeueEmbedBold, BebasNeueEmbed, Bebas Neue, Arial, sans-serif" font-size="${questionSize}" font-weight="bold" opacity="0.8">?</text>`;
           }
           if (!mvpName) return '';
           const n = (mvpName || '').toUpperCase();
@@ -290,7 +290,7 @@ export const championshipRouter = new Elysia({ prefix: '/api/championship' })
           const lX = nameX - (w / 2) - gap - (lW / 2);
           const lY = bgY + (bgH / 2) - (lH / 2);
           const logoPart = mvpTeamLogo ? `<image href="${mvpTeamLogo}" x="${lX}" y="${lY}" width="${lW}" height="${lH}" preserveAspectRatio="xMidYMid meet" />` : '';
-          const namePart = `<text x="${nameX}" y="${nameY}" text-anchor="middle" fill="#ffffff" font-family="BebasNeueEmbed, Bebas Neue, Arial, sans-serif" font-size="${nameFontPx}" font-weight="700">${n}</text>`;
+          const namePart = `<text x="${nameX}" y="${nameY}" text-anchor="middle" fill="#ffffff" font-family="BebasNeueEmbedBold, BebasNeueEmbed, Bebas Neue, Arial, sans-serif" font-size="${nameFontPx}" font-weight="bold">${n}</text>`;
           const bgPart = `<rect x="${bgX}" y="${bgY}" width="${bgW}" height="${bgH}" fill="#000000" opacity="0.6" filter="url(#blur)" rx="8"/>`;
           return bgPart + logoPart + namePart;
         })()}
