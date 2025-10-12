@@ -184,8 +184,9 @@ export const championshipRouter = new Elysia({ prefix: '/api/championship' })
         const iconW = 20 * SCALE; const iconH = 20 * SCALE; const iconY = y - 20 * SCALE; // align to text baseline
         const iconX = startX + nameOffsetX + nameWidth + 6 * SCALE;
         const deltaText = drawChange ? (delta > 0 ? `(+${delta})` : `(${delta})`) : '';
-        const imgEl = iconData ? `<image href="${iconData}" x="${iconX}" y="${iconY}" width="${iconW}" height="${iconH}" image-rendering="optimizeQuality" />` : `<rect x="${iconX}" y="${y - 8}" width="18" height="4" rx="2" ry="2" fill="#bfbfbf" />`;
-        const deltaEl = drawChange ? `<text x="${iconX + iconW + 6}" y="${y}" fill="${color}" font-family="Bebas Neue, Arial, sans-serif" font-size="${arrowFont}" font-weight="700">${deltaText}</text>` : '';
+        // Only show icons and delta text if showDelta is true (not first gameday)
+        const imgEl = showDelta ? (iconData ? `<image href="${iconData}" x="${iconX}" y="${iconY}" width="${iconW}" height="${iconH}" image-rendering="optimizeQuality" />` : `<rect x="${iconX}" y="${y - 8}" width="18" height="4" rx="2" ry="2" fill="#bfbfbf" />`) : '';
+        const deltaEl = showDelta && drawChange ? `<text x="${iconX + iconW + 6}" y="${y}" fill="${color}" font-family="Bebas Neue, Arial, sans-serif" font-size="${arrowFont}" font-weight="700">${deltaText}</text>` : '';
         return `<g>
           <text x="${startX}" y="${y}" fill="#ffffff" font-family="Bebas Neue, Arial, sans-serif" font-size="${rankFont}" font-weight="700">${idx + 1}.</text>
           ${logoEl}
@@ -209,9 +210,13 @@ export const championshipRouter = new Elysia({ prefix: '/api/championship' })
       let mvpTeamLogo: string | null = null;
       let mvpImage: { dataUri: string; w: number; h: number } | null = null;
       let showNoPlayer = false;
+      let hasMvp = false; // Track if any MVP is selected
+      
       if (mvpPlayerId === 'no-player') {
         showNoPlayer = true;
+        hasMvp = true;
       } else if (mvpPlayerId) {
+        hasMvp = true;
         try {
           const [pl] = await db.select().from(players).where(eq(players.id, mvpPlayerId));
           if (pl) {
@@ -265,10 +270,10 @@ export const championshipRouter = new Elysia({ prefix: '/api/championship' })
         </style>
         <image href="${bgDataUri}" x="0" y="0" width="${width}" height="${height}" preserveAspectRatio="xMidYMid slice"/>
         ${seasonLogo ? `<image href="${seasonLogo}" x="${seasonX}" y="${seasonY}" width="${seasonW}" height="${seasonH}" preserveAspectRatio="xMidYMid meet" />` : ''}
-        <text x="${titleX}" y="${titleY}" text-anchor="end" fill="#ffffff" font-family="Bebas Neue, Arial, sans-serif" font-size="${titleFont}" font-weight="700">GAMEDAY MVP</text>
+        ${hasMvp ? `<text x="${titleX}" y="${titleY}" text-anchor="end" fill="#ffffff" font-family="Bebas Neue, Arial, sans-serif" font-size="${titleFont}" font-weight="700">GAMEDAY MVP</text>` : ''}
         ${rowsSvg}
         ${mvpImage ? `<image href="${mvpImage.dataUri}" x="${width - mvpImage.w}" y="${height - mvpImage.h}" width="${mvpImage.w}" height="${mvpImage.h}" preserveAspectRatio="xMidYMid meet" />` : ''}
-        ${(() => {
+        ${hasMvp ? (() => {
           if (showNoPlayer) {
             // Large question mark centered relative to GAMEDAY MVP title
             const questionSize = 200 * SCALE;
@@ -296,7 +301,7 @@ export const championshipRouter = new Elysia({ prefix: '/api/championship' })
           const namePart = `<text x="${nameX}" y="${nameY}" text-anchor="middle" fill="#ffffff" font-family="Bebas Neue, Arial, sans-serif" font-size="${nameFontPx}" font-weight="700">${n}</text>`;
           const bgPart = `<rect x="${bgX}" y="${bgY}" width="${bgW}" height="${bgH}" fill="#000000" opacity="0.6" filter="url(#blur)" rx="8"/>`;
           return bgPart + logoPart + namePart;
-        })()}
+        })() : ''}
       </svg>`;
       // Dynamic import without static type resolution to avoid lints
       const { Resvg } = await (new Function('p', 'return import(p)'))('@resvg/resvg-js');
