@@ -388,6 +388,17 @@ export const championshipRouter = new Elysia({ prefix: '/api/championship' })
       return { error: true, message: error instanceof Error ? error.message : 'Unknown error occurred' };
     }
   })
+  .get('/:id/standings/gameday/:gameDay', async ({ params: { id, gameDay }, set }) => {
+    try {
+      const gd = Number(gameDay);
+      if (!Number.isFinite(gd) || gd < 1) throw new Error('Invalid gameDay');
+      const standings = await computeStandings(id, { gameDay: gd });
+      return { standings };
+    } catch (error) {
+      set.status = 400;
+      return { error: true, message: error instanceof Error ? error.message : 'Unknown error occurred' };
+    }
+  })
   .get('/:id/standings/gameday/:gameDay/with-delta', async ({ params: { id, gameDay }, set }) => {
     try {
       const gd = Number(gameDay);

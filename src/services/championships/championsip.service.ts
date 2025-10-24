@@ -348,6 +348,15 @@ export async function computeStandings(leagueId: string, opts?: { date?: string;
     lossesRegular: number;
     cupDiff: number;
     points: number;
+    form: string[];
+    recentMatches: Array<{
+      opponent: string;
+      opponentLogo?: string | null;
+      result: string;
+      score: string;
+      date: string;
+      gameDay?: number;
+    }>;
   };
   const byTeam = new Map<string, Row>();
   for (const t of teamList as any[]) {
@@ -364,6 +373,8 @@ export async function computeStandings(leagueId: string, opts?: { date?: string;
       lossesRegular: 0,
       cupDiff: 0,
       points: 0,
+      form: [],
+      recentMatches: [],
     });
   }
 
@@ -386,7 +397,12 @@ export async function computeStandings(leagueId: string, opts?: { date?: string;
   }
   const played = await db.select().from(matches).where(and(...filters));
 
-  for (const m of played as any[]) {
+  // Sort matches by date to calculate form correctly
+  const sortedMatches = (played as any[]).sort((a, b) => 
+    new Date(a.matchAt || a.matchDate).getTime() - new Date(b.matchAt || b.matchDate).getTime()
+  );
+
+  for (const m of sortedMatches) {
     const homeId = m.homeTeamId as string;
     const awayId = m.awayTeamId as string;
     const homeScore = Number(m.homeTeamScore || 0);
@@ -396,6 +412,29 @@ export async function computeStandings(leagueId: string, opts?: { date?: string;
     const home = byTeam.get(homeId)!;
     const away = byTeam.get(awayId)!;
     home.games += 1; away.games += 1;
+
+    // Add match details to recent matches
+    const matchDate = new Date(m.matchAt || m.matchDate).toLocaleDateString('hu-HU');
+    const homeResult = homeScore > awayScore ? 'W' : 'L';
+    const awayResult = awayScore > homeScore ? 'W' : 'L';
+    
+    home.recentMatches.push({
+      opponent: away.name,
+      opponentLogo: away.logo,
+      result: homeResult,
+      score: `${homeScore}-${awayScore}`,
+      date: matchDate,
+      gameDay: m.gameDay
+    });
+    
+    away.recentMatches.push({
+      opponent: home.name,
+      opponentLogo: home.logo,
+      result: awayResult,
+      score: `${awayScore}-${homeScore}`,
+      date: matchDate,
+      gameDay: m.gameDay
+    });
 
     // Cup difference rule
     const maxScore = Math.max(homeScore, awayScore);
@@ -416,12 +455,18 @@ export async function computeStandings(leagueId: string, opts?: { date?: string;
       // cup diff
       home.cupDiff += diff;
       away.cupDiff -= diff;
+      // form
+      home.form.push('W');
+      away.form.push('L');
     } else {
       away.winsTotal += 1;
       if (overtime) { away.winsOT += 1; away.points += 2; home.lossesOT += 1; home.points += 1; }
       else { away.winsRegular += 1; away.points += 3; home.lossesRegular += 1; }
       away.cupDiff += diff;
       home.cupDiff -= diff;
+      // form
+      away.form.push('W');
+      home.form.push('L');
     }
   }
 
