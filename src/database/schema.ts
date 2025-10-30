@@ -197,6 +197,7 @@ export const matches = pgTable('matches', {
 	trackingData: jsonb('tracking_data'),
 	isDelayed: boolean('is_delayed').notNull().default(false),
 	delayedRound: integer('delayed_round'),
+	delayedGameDay: integer('delayed_game_day'),
 	delayedDate: timestamp('delayed_date'),
 	delayedTime: timestamp('delayed_time'),
 	delayedTable: integer('delayed_table'),

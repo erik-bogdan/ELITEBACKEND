@@ -108,6 +108,7 @@ export async function getMatchesByLeague(leagueId: string) {
       trackingData: matches.trackingData,
       isDelayed: matches.isDelayed,
       delayedRound: matches.delayedRound,
+      delayedGameDay: matches.delayedGameDay,
       delayedDate: matches.delayedDate,
       delayedTime: matches.delayedTime,
       delayedTable: matches.delayedTable,
@@ -225,7 +226,7 @@ export async function updateMatchStatus(matchId: string, status: 'scheduled' | '
   return updatedMatch;
 } 
 
-export async function getMatchesFiltered(opts: { seasonId?: string; leagueId?: string; round?: number; page?: number; pageSize?: number }) {
+export async function getMatchesFiltered(opts: { seasonId?: string; leagueId?: string; round?: number; page?: number; pageSize?: number; delayedOnly?: boolean }) {
   const page = Number(opts.page) >= 1 ? Number(opts.page) : 1;
   const pageSize = Number(opts.pageSize) >= 1 ? Number(opts.pageSize) : 20;
   const offset = (page - 1) * pageSize;
@@ -234,6 +235,7 @@ export async function getMatchesFiltered(opts: { seasonId?: string; leagueId?: s
   if (opts.leagueId) filters.push(eq(matches.leagueId, opts.leagueId));
   if (typeof opts.round === 'number') filters.push(eq(matches.matchRound, opts.round));
   if (opts.seasonId) filters.push(eq(leagues.seasonId, opts.seasonId));
+  if (opts.delayedOnly) filters.push(eq(matches.isDelayed, true));
 
   const homeTeams = alias(teams, 'home_teams');
   const awayTeams = alias(teams, 'away_teams');
@@ -311,6 +313,12 @@ export async function getMatchesFiltered(opts: { seasonId?: string; leagueId?: s
         trackingStartedAt: matches.trackingStartedAt,
         trackingFinishedAt: matches.trackingFinishedAt,
         trackingData: matches.trackingData,
+        isDelayed: matches.isDelayed,
+        delayedRound: matches.delayedRound,
+        delayedGameDay: matches.delayedGameDay,
+        delayedDate: matches.delayedDate,
+        delayedTime: matches.delayedTime,
+        delayedTable: matches.delayedTable,
         createdAt: matches.createdAt,
         updatedAt: matches.updatedAt
       },
@@ -363,10 +371,12 @@ export async function updateMatchAdmin(
   data: {
     matchAt?: string;
     matchRound?: number;
+    gameDay?: number;
     matchTable?: number;
     matchStatus?: 'scheduled' | 'in_progress' | 'completed' | 'cancelled';
     isDelayed?: boolean;
     delayedRound?: number;
+    delayedGameDay?: number;
     delayedDate?: string;
     delayedTime?: string;
     delayedTable?: number;
@@ -385,12 +395,14 @@ export async function updateMatchAdmin(
     update.matchTime = at;
   }
   if (typeof data.matchRound === 'number') update.matchRound = data.matchRound;
+  if (typeof data.gameDay === 'number') update.gameDay = data.gameDay;
   if (typeof data.matchTable === 'number') update.matchTable = data.matchTable;
   if (data.matchStatus) update.matchStatus = data.matchStatus;
   
   // Delay fields
   if (typeof data.isDelayed === 'boolean') update.isDelayed = data.isDelayed;
   if (typeof data.delayedRound === 'number') update.delayedRound = data.delayedRound;
+  if (typeof data.delayedGameDay === 'number') update.delayedGameDay = data.delayedGameDay;
   if (data.delayedDate) {
     // Handle ISO string from frontend
     const delayedDate = new Date(data.delayedDate);

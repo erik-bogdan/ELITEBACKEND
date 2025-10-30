@@ -381,10 +381,16 @@ export async function computeStandings(leagueId: string, opts?: { date?: string;
   // Get completed matches for league
   const filters: any[] = [eq(matches.leagueId, leagueId), eq(matches.matchStatus, 'completed')];
   if (typeof opts?.gameDay === 'number') {
-    filters.push(eq(matches.gameDay, opts.gameDay));
+    // Use delayedGameDay if available, otherwise use gameDay
+    filters.push(
+      sql`COALESCE(${matches.delayedGameDay}, ${matches.gameDay}) = ${opts.gameDay}`
+    );
   }
   if (typeof opts?.uptoGameDay === 'number') {
-    filters.push(lte(matches.gameDay, opts.uptoGameDay));
+    // Use delayedGameDay if available, otherwise use gameDay
+    filters.push(
+      sql`COALESCE(${matches.delayedGameDay}, ${matches.gameDay}) <= ${opts.uptoGameDay}`
+    );
   }
   if (typeof opts?.uptoRound === 'number') {
     filters.push(lte(matches.matchRound, opts.uptoRound));

@@ -162,6 +162,13 @@
       "when": 1759907231334,
       "tag": "0022_elite_daredevil",
       "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1761573945690,
+      "tag": "0023_parallel_sleepwalker",
+      "breakpoints": true
     }
   ]
 }

@@ -84,11 +84,12 @@ export const matchRouter = new Elysia({ prefix: '/api/matches' })
 
   // Filtered, paginated list for admin with season/league/round
   .get('/', async ({ query }) => {
-    const { seasonId, leagueId, round, page, pageSize } = query as any;
+    const { seasonId, leagueId, round, page, pageSize, delayedOnly } = query as any;
     const rd = typeof round === 'string' ? Number(round) : undefined;
     const pg = typeof page === 'string' ? Number(page) : undefined;
     const ps = typeof pageSize === 'string' ? Number(pageSize) : undefined;
-    return await getMatchesFiltered({ seasonId, leagueId, round: rd, page: pg, pageSize: ps });
+    const delayed = delayedOnly === 'true' || delayedOnly === true;
+    return await getMatchesFiltered({ seasonId, leagueId, round: rd, page: pg, pageSize: ps, delayedOnly: delayed });
   }, {
     query: t.Object({
       seasonId: t.Optional(t.String()),
@@ -96,6 +97,7 @@ export const matchRouter = new Elysia({ prefix: '/api/matches' })
       round: t.Optional(t.String()),
       page: t.Optional(t.String()),
       pageSize: t.Optional(t.String()),
+      delayedOnly: t.Optional(t.String()),
     }),
     detail: {
       summary: 'Filtered, paginated matches list',
@@ -240,10 +242,12 @@ export const matchRouter = new Elysia({ prefix: '/api/matches' })
       schedule: {
         matchAt: m.matchAt,
         matchRound: m.matchRound,
+        gameDay: m.gameDay,
         matchTable: m.matchTable,
         matchStatus: m.matchStatus,
         isDelayed: m.isDelayed,
         delayedRound: m.delayedRound,
+        delayedGameDay: m.delayedGameDay,
         delayedDate: m.delayedDate,
         delayedTime: m.delayedTime,
         delayedTable: m.delayedTable,
@@ -276,13 +280,14 @@ export const matchRouter = new Elysia({ prefix: '/api/matches' })
   })
   .put('/:id/admin', async ({ params, body }) => {
     const { id } = params;
-    const { matchAt, matchRound, matchTable, matchStatus, isDelayed, delayedRound, delayedDate, delayedTime, delayedTable } = body as any;
-    return await updateMatchAdmin(id, { matchAt, matchRound, matchTable, matchStatus, isDelayed, delayedRound, delayedDate, delayedTime, delayedTable } as any);
+    const { matchAt, matchRound, gameDay, matchTable, matchStatus, isDelayed, delayedRound, delayedGameDay, delayedDate, delayedTime, delayedTable } = body as any;
+    return await updateMatchAdmin(id, { matchAt, matchRound, gameDay, matchTable, matchStatus, isDelayed, delayedRound, delayedGameDay, delayedDate, delayedTime, delayedTable } as any);
   }, {
     params: t.Object({ id: t.String() }),
     body: t.Object({
       matchAt: t.Optional(t.String()),
       matchRound: t.Optional(t.Number()),
+      gameDay: t.Optional(t.Number()),
       matchTable: t.Optional(t.Number()),
       matchStatus: t.Optional(t.Union([
         t.Literal('scheduled'),
@@ -292,6 +297,7 @@ export const matchRouter = new Elysia({ prefix: '/api/matches' })
       ])),
       isDelayed: t.Optional(t.Boolean()),
       delayedRound: t.Optional(t.Number()),
+      delayedGameDay: t.Optional(t.Number()),
       delayedDate: t.Optional(t.String()),
       delayedTime: t.Optional(t.String()),
       delayedTable: t.Optional(t.Number())

@@ -1,0 +1,1 @@
+ALTER TABLE "matches" ADD COLUMN "delayed_game_day" integer;
