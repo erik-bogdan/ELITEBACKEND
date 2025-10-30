@@ -49,6 +49,7 @@ export const championshipRouter = new Elysia({ prefix: '/api/championship' })
       const gd = Number(gameDay);
       if (!Number.isFinite(gd) || gd < 1) throw new Error('Invalid gameDay');
       const mvpPlayerId = (query as any)?.mvpPlayerId as string | undefined;
+      const mvpLabel = ((query as any)?.mvpLabel as string) || 'GAMEDAY MVP';
       const { computeStandings } = await import('../services/championships/championsip.service');
       const cur = await computeStandings(id, { uptoGameDay: gd });
       const prev = gd > 1 ? await computeStandings(id, { uptoGameDay: gd - 1 }) : [];
@@ -270,7 +271,7 @@ export const championshipRouter = new Elysia({ prefix: '/api/championship' })
         </style>
         <image href="${bgDataUri}" x="0" y="0" width="${width}" height="${height}" preserveAspectRatio="xMidYMid slice"/>
         ${seasonLogo ? `<image href="${seasonLogo}" x="${seasonX}" y="${seasonY}" width="${seasonW}" height="${seasonH}" preserveAspectRatio="xMidYMid meet" />` : ''}
-        ${hasMvp ? `<text x="${titleX}" y="${titleY}" text-anchor="end" fill="#ffffff" font-family="Bebas Neue, Arial, sans-serif" font-size="${titleFont}" font-weight="700">GAMEDAY MVP</text>` : ''}
+        ${hasMvp ? `<text x="${titleX}" y="${titleY}" text-anchor="end" fill="#ffffff" font-family="Bebas Neue, Arial, sans-serif" font-size="${titleFont}" font-weight="700">${mvpLabel}</text>` : ''}
         ${rowsSvg}
         ${mvpImage ? `<image href="${mvpImage.dataUri}" x="${width - mvpImage.w}" y="${height - mvpImage.h}" width="${mvpImage.w}" height="${mvpImage.h}" preserveAspectRatio="xMidYMid meet" />` : ''}
         ${hasMvp ? (() => {
