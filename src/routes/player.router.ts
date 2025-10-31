@@ -9,6 +9,7 @@ import {
   getPlayersByTeam,
   getAllPlayers,
   getPlayersBySeason,
+  getPlayersFiltered,
   getPlayerSeasons,
   updatePlayer,
   uploadPlayerImage,
@@ -93,7 +94,17 @@ export const playerRouter = new Elysia({ prefix: '/api/players' })
   })
   .get('/', async ({ query }) => {
     const seasonId = (query as any)?.seasonId as string | undefined;
-    const rows = seasonId ? await getPlayersBySeason(seasonId) : await getAllPlayers();
+    const leagueId = (query as any)?.leagueId as string | undefined;
+    const teamId = (query as any)?.teamId as string | undefined;
+    
+    // Use filtered function if any filter is provided, otherwise use old logic for backwards compatibility
+    let rows: any[];
+    if (seasonId || leagueId || teamId) {
+      rows = await getPlayersFiltered({ seasonId, leagueId, teamId });
+    } else {
+      rows = await getAllPlayers();
+    }
+    
     // Attach invitation metadata (pending + lastSentAt)
     try {
       const ids = (rows as any[]).map(r => r.id).filter(Boolean);
@@ -118,7 +129,7 @@ export const playerRouter = new Elysia({ prefix: '/api/players' })
     return rows;
   }, {
     detail: {
-      summary: 'List players (optionally by season)',
+      summary: 'List players (optionally by season, league, or team)',
       tags: ['Players']
     }
   })

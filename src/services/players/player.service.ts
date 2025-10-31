@@ -1,8 +1,8 @@
 import { writeFile, mkdir } from 'node:fs/promises';
 import { join } from 'node:path';
 import { db } from '../../db';
-import { players, teams, teamPlayers, seasons, playerInvitations } from '../../database/schema';
-import { and, eq } from 'drizzle-orm';
+import { players, teams, teamPlayers, seasons, playerInvitations, leagues, leagueTeams } from '../../database/schema';
+import { and, eq, inArray } from 'drizzle-orm';
 import { nanoid } from 'nanoid';
 
 export interface Player {
@@ -156,6 +156,68 @@ export async function getPlayersBySeason(seasonId: string): Promise<Player[]> {
     .from(teamPlayers)
     .innerJoin(players, eq(teamPlayers.playerId, players.id))
     .where(eq(teamPlayers.seasonId, seasonId));
+  
+  const backendUrl = process.env.BACKEND_PUBLIC_URL || 'http://localhost:3555';
+  
+  return (result as unknown as Player[]).map(player => ({
+    ...player,
+    image: player.image ? `${backendUrl}${player.image}` : `${backendUrl}/uploads/player-images/default.png`
+  }));
+}
+
+export async function getPlayersFiltered(opts: { seasonId?: string; leagueId?: string; teamId?: string }): Promise<Player[]> {
+  let teamIdsToFilter: string[] | undefined = undefined;
+
+  // If leagueId is provided, get all teams in that league
+  if (opts.leagueId) {
+    const leagueTeamRows = await db
+      .select({ teamId: leagueTeams.teamId })
+      .from(leagueTeams)
+      .where(eq(leagueTeams.leagueId, opts.leagueId));
+    teamIdsToFilter = leagueTeamRows.map((row: any) => row.teamId).filter(Boolean);
+    
+    // If no teams in league, return empty array
+    if (teamIdsToFilter.length === 0) {
+      return [];
+    }
+  }
+
+  // If teamId is provided, use only that team
+  if (opts.teamId) {
+    teamIdsToFilter = [opts.teamId];
+  }
+
+  // Build query conditions
+  const conditions: any[] = [];
+  
+  if (opts.seasonId) {
+    conditions.push(eq(teamPlayers.seasonId, opts.seasonId));
+  }
+  
+  if (teamIdsToFilter && teamIdsToFilter.length > 0) {
+    conditions.push(inArray(teamPlayers.teamId, teamIdsToFilter));
+  }
+
+  const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
+
+  const result = await db
+    .select({
+      id: players.id,
+      nickname: players.nickname,
+      firstName: players.firstName,
+      lastName: players.lastName,
+      email: players.email,
+      teamId: teamPlayers.teamId, // Use teamId from teamPlayers, not from players
+      birthDate: players.birthDate,
+      image: players.image,
+      userId: players.userId,
+      shirtSize: players.shirtSize,
+      createdAt: players.createdAt,
+      updatedAt: players.updatedAt,
+    })
+    .from(teamPlayers)
+    .innerJoin(players, eq(teamPlayers.playerId, players.id))
+    .where(whereClause as any);
   
   const backendUrl = process.env.BACKEND_PUBLIC_URL || 'http://localhost:3555';
   

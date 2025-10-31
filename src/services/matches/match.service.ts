@@ -333,7 +333,7 @@ export async function updateMatchStatus(matchId: string, status: 'scheduled' | '
   return updatedMatch;
 } 
 
-export async function getMatchesFiltered(opts: { seasonId?: string; leagueId?: string; round?: number; page?: number; pageSize?: number; delayedOnly?: boolean }) {
+export async function getMatchesFiltered(opts: { seasonId?: string; leagueId?: string; round?: number; page?: number; pageSize?: number; delayedOnly?: boolean; teamId?: string }) {
   const page = Number(opts.page) >= 1 ? Number(opts.page) : 1;
   const pageSize = Number(opts.pageSize) >= 1 ? Number(opts.pageSize) : 20;
   const offset = (page - 1) * pageSize;
@@ -343,6 +343,7 @@ export async function getMatchesFiltered(opts: { seasonId?: string; leagueId?: s
   if (typeof opts.round === 'number') filters.push(eq(matches.matchRound, opts.round));
   if (opts.seasonId) filters.push(eq(leagues.seasonId, opts.seasonId));
   if (opts.delayedOnly) filters.push(eq(matches.isDelayed, true));
+  if (opts.teamId) filters.push(or(eq(matches.homeTeamId, opts.teamId), eq(matches.awayTeamId, opts.teamId)));
 
   const homeTeams = alias(teams, 'home_teams');
   const awayTeams = alias(teams, 'away_teams');
