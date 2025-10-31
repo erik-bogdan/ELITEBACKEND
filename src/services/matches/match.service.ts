@@ -1,6 +1,6 @@
 import { db } from '../../db';
-import { matches, leagues, teams, players } from '../../database/schema';
-import { eq, and, asc, sql } from 'drizzle-orm';
+import { matches, leagues, teams, players, seasons, leagueTeams } from '../../database/schema';
+import { eq, and, asc, sql, or, inArray } from 'drizzle-orm';
 import { alias } from 'drizzle-orm/pg-core';
 
 export interface MatchResult {
@@ -142,6 +142,113 @@ export async function getMatchesByLeague(leagueId: string) {
   }
 
   return leagueMatches;
+}
+
+export async function getMatchesByTeam(teamId: string, seasonId?: string) {
+  // If seasonId is not provided, use active season
+  let targetSeasonId = seasonId;
+  if (!targetSeasonId) {
+    const [activeSeason] = await db.select().from(seasons).where(eq(seasons.isActive, true));
+    if (!activeSeason) {
+      throw new Error('No active season found');
+    }
+    targetSeasonId = activeSeason.id;
+  }
+
+  // Get all leagues for this season where the team participates
+  const leaguesInSeason = await db.select().from(leagues).where(eq(leagues.seasonId, targetSeasonId));
+  const leagueIds = leaguesInSeason.map(l => l.id);
+  
+  // Verify team is in at least one league
+  let teamLeagues: any[] = [];
+  if (leagueIds.length > 0) {
+    teamLeagues = await db.select().from(leagueTeams)
+      .where(and(eq(leagueTeams.teamId, teamId), inArray(leagueTeams.leagueId, leagueIds)));
+  }
+  
+  if (leagueIds.length === 0 || teamLeagues.length === 0) {
+    return []; // Team not in any league for this season
+  }
+
+  const leagueIdsForTeam = teamLeagues.map(tl => tl.leagueId);
+
+  // Get all matches for the team (as home or away) in these leagues
+  const homeTeams = alias(teams, 'home_teams');
+  const awayTeams = alias(teams, 'away_teams');
+  const homeMvp = alias(players, 'home_mvp');
+  const awayMvp = alias(players, 'away_mvp');
+  const homeFirstPlayer = alias(players, 'home_first_player');
+  const homeSecondPlayer = alias(players, 'home_second_player');
+  const awayFirstPlayer = alias(players, 'away_first_player');
+  const awaySecondPlayer = alias(players, 'away_second_player');
+
+  const teamMatches = await db.select({
+    match: {
+      id: matches.id,
+      leagueId: matches.leagueId,
+      teamId: matches.teamId,
+      homeTeamId: matches.homeTeamId,
+      awayTeamId: matches.awayTeamId,
+      homeLeagueTeamId: matches.homeLeagueTeamId,
+      awayLeagueTeamId: matches.awayLeagueTeamId,
+      homeTeamScore: matches.homeTeamScore,
+      awayTeamScore: matches.awayTeamScore,
+      homeTeamBestPlayerId: matches.homeTeamBestPlayerId,
+      awayTeamBestPlayerId: matches.awayTeamBestPlayerId,
+      homeFirstPlayerId: matches.homeFirstPlayerId,
+      homeSecondPlayerId: matches.homeSecondPlayerId,
+      awayFirstPlayerId: matches.awayFirstPlayerId,
+      awaySecondPlayerId: matches.awaySecondPlayerId,
+      matchAt: matches.matchAt,
+      matchDate: matches.matchDate,
+      matchTime: matches.matchTime,
+      matchStatus: matches.matchStatus,
+      matchType: matches.matchType,
+      matchRound: matches.matchRound,
+      gameDay: matches.gameDay,
+      matchTable: matches.matchTable,
+      trackingActive: matches.trackingActive,
+      trackingStartedAt: matches.trackingStartedAt,
+      trackingFinishedAt: matches.trackingFinishedAt,
+      trackingData: matches.trackingData,
+      isDelayed: matches.isDelayed,
+      delayedRound: matches.delayedRound,
+      delayedGameDay: matches.delayedGameDay,
+      delayedDate: matches.delayedDate,
+      delayedTime: matches.delayedTime,
+      delayedTable: matches.delayedTable,
+      createdAt: matches.createdAt,
+      updatedAt: matches.updatedAt
+    },
+    homeTeam: homeTeams,
+    awayTeam: awayTeams,
+    homeTeamBestPlayer: homeMvp,
+    awayTeamBestPlayer: awayMvp,
+    homeFirstPlayer: homeFirstPlayer,
+    homeSecondPlayer: homeSecondPlayer,
+    awayFirstPlayer: awayFirstPlayer,
+    awaySecondPlayer: awaySecondPlayer,
+    league: leagues
+  })
+  .from(matches)
+  .leftJoin(leagues, eq(matches.leagueId, leagues.id))
+  .leftJoin(homeTeams, eq(matches.homeTeamId, homeTeams.id))
+  .leftJoin(awayTeams, eq(matches.awayTeamId, awayTeams.id))
+  .leftJoin(homeMvp, eq(matches.homeTeamBestPlayerId, homeMvp.id))
+  .leftJoin(awayMvp, eq(matches.awayTeamBestPlayerId, awayMvp.id))
+  .leftJoin(homeFirstPlayer, eq(matches.homeFirstPlayerId, homeFirstPlayer.id))
+  .leftJoin(homeSecondPlayer, eq(matches.homeSecondPlayerId, homeSecondPlayer.id))
+  .leftJoin(awayFirstPlayer, eq(matches.awayFirstPlayerId, awayFirstPlayer.id))
+  .leftJoin(awaySecondPlayer, eq(matches.awaySecondPlayerId, awaySecondPlayer.id))
+  .where(
+    and(
+      or(eq(matches.homeTeamId, teamId), eq(matches.awayTeamId, teamId)),
+      inArray(matches.leagueId, leagueIdsForTeam)
+    )
+  )
+  .orderBy(asc(matches.matchAt), asc(matches.matchTable));
+
+  return teamMatches;
 }
 
 export async function getMatchById(matchId: string) {

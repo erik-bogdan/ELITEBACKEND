@@ -12,6 +12,7 @@ import {
   assignPlayerToTeamSeason,
   unassignPlayerFromTeamSeason
 } from '../services/teams/team.service';
+import { getMatchesByTeam } from '../services/matches/match.service';
 import { db } from '../db';
 import { leagues, seasons, teamPlayers, players, teams } from '../database/schema';
 import { eq, and } from 'drizzle-orm';
@@ -168,4 +169,12 @@ export const teamRouter = new Elysia({ prefix: '/api/teams' })
     params: t.Object({ id: t.String(), playerId: t.String() }),
     query: t.Object({ seasonId: t.String() }),
     detail: { summary: 'Unassign player from team for a season', tags: ['Teams'] }
+  })
+  .get('/:id/matches', async ({ params, query }) => {
+    const seasonId = (query as any)?.seasonId as string | undefined;
+    return await getMatchesByTeam(params.id, seasonId);
+  }, {
+    params: t.Object({ id: t.String() }),
+    query: t.Object({ seasonId: t.Optional(t.String()) }),
+    detail: { summary: 'Get all matches for a team in current/selected season', tags: ['Teams'] }
   });
