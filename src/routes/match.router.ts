@@ -84,17 +84,19 @@ export const matchRouter = new Elysia({ prefix: '/api/matches' })
 
   // Filtered, paginated list for admin with season/league/round
   .get('/', async ({ query }) => {
-    const { seasonId, leagueId, round, page, pageSize, delayedOnly, teamId } = query as any;
+    const { seasonId, leagueId, round, gameDay, page, pageSize, delayedOnly, teamId } = query as any;
     const rd = typeof round === 'string' ? Number(round) : undefined;
+    const gd = typeof gameDay === 'string' ? Number(gameDay) : undefined;
     const pg = typeof page === 'string' ? Number(page) : undefined;
     const ps = typeof pageSize === 'string' ? Number(pageSize) : undefined;
     const delayed = delayedOnly === 'true' || delayedOnly === true;
-    return await getMatchesFiltered({ seasonId, leagueId, round: rd, page: pg, pageSize: ps, delayedOnly: delayed, teamId });
+    return await getMatchesFiltered({ seasonId, leagueId, round: rd, gameDay: gd, page: pg, pageSize: ps, delayedOnly: delayed, teamId });
   }, {
     query: t.Object({
       seasonId: t.Optional(t.String()),
       leagueId: t.Optional(t.String()),
       round: t.Optional(t.String()),
+      gameDay: t.Optional(t.String()),
       page: t.Optional(t.String()),
       pageSize: t.Optional(t.String()),
       delayedOnly: t.Optional(t.String()),

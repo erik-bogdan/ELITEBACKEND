@@ -333,7 +333,7 @@ export async function updateMatchStatus(matchId: string, status: 'scheduled' | '
   return updatedMatch;
 } 
 
-export async function getMatchesFiltered(opts: { seasonId?: string; leagueId?: string; round?: number; page?: number; pageSize?: number; delayedOnly?: boolean; teamId?: string }) {
+export async function getMatchesFiltered(opts: { seasonId?: string; leagueId?: string; round?: number; gameDay?: number; page?: number; pageSize?: number; delayedOnly?: boolean; teamId?: string }) {
   const page = Number(opts.page) >= 1 ? Number(opts.page) : 1;
   const pageSize = Number(opts.pageSize) >= 1 ? Number(opts.pageSize) : 20;
   const offset = (page - 1) * pageSize;
@@ -344,6 +344,16 @@ export async function getMatchesFiltered(opts: { seasonId?: string; leagueId?: s
   if (opts.seasonId) filters.push(eq(leagues.seasonId, opts.seasonId));
   if (opts.delayedOnly) filters.push(eq(matches.isDelayed, true));
   if (opts.teamId) filters.push(or(eq(matches.homeTeamId, opts.teamId), eq(matches.awayTeamId, opts.teamId)));
+  if (typeof opts.gameDay === 'number') {
+    // Match if gameDay equals the selected gameDay OR delayedGameDay equals the selected gameDay
+    // This way we get matches that have either the original or delayed gameDay matching
+    filters.push(
+      or(
+        eq(matches.gameDay, opts.gameDay),
+        eq(matches.delayedGameDay, opts.gameDay)
+      )
+    );
+  }
 
   const homeTeams = alias(teams, 'home_teams');
   const awayTeams = alias(teams, 'away_teams');

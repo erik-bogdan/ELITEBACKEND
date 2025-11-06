@@ -1,4 +1,4 @@
-import { pgTable, timestamp, varchar, uuid, text, boolean, jsonb, integer } from "drizzle-orm/pg-core";
+import { pgTable, timestamp, varchar, uuid, text, boolean, jsonb, integer, unique } from "drizzle-orm/pg-core";
 
 export const user = pgTable("user", {
 	id: text('id').primaryKey(),
@@ -238,3 +238,46 @@ export const systemLogs = pgTable('system_logs', {
   metadata: jsonb('metadata'), // Additional data like team names, match scores, etc.
   createdAt: timestamp('created_at').defaultNow()
 });
+
+// Live matches groups for organizing matches
+export const liveMatchesGroup = pgTable('live_matches_group', {
+  id: uuid().notNull().primaryKey().defaultRandom(),
+  name: varchar('name', { length: 255 }).notNull(),
+  active: boolean('active').notNull().default(false),
+  createdAt: timestamp('created_at').defaultNow(),
+  updatedAt: timestamp('updated_at').defaultNow()
+});
+
+// Junction table for live match groups and matches
+export const liveMatchesGroupMatches = pgTable('live_matches_group_matches', {
+  id: uuid().notNull().primaryKey().defaultRandom(),
+  groupId: uuid().notNull().references(() => liveMatchesGroup.id, { onDelete: 'cascade' }),
+  matchId: uuid().notNull().references(() => matches.id, { onDelete: 'cascade' }),
+  createdAt: timestamp('created_at').defaultNow()
+});
+
+export const liveMatchPoll = pgTable('live_match_poll', {
+  id: uuid().notNull().primaryKey().defaultRandom(),
+  groupMatchId: uuid().notNull().references(() => liveMatchesGroupMatches.id, { onDelete: 'cascade' }),
+  question: varchar('question', { length: 500 }).notNull(),
+  createdAt: timestamp('created_at').defaultNow(),
+  updatedAt: timestamp('updated_at').defaultNow()
+});
+
+export const liveMatchPollOption = pgTable('live_match_poll_option', {
+  id: uuid().notNull().primaryKey().defaultRandom(),
+  pollId: uuid().notNull().references(() => liveMatchPoll.id, { onDelete: 'cascade' }),
+  text: varchar('text', { length: 255 }).notNull(),
+  order: integer('order').notNull().default(0),
+  createdAt: timestamp('created_at').defaultNow()
+});
+
+export const liveMatchPollVote = pgTable('live_match_poll_vote', {
+  id: uuid().notNull().primaryKey().defaultRandom(),
+  pollId: uuid('poll_id').notNull().references(() => liveMatchPoll.id, { onDelete: 'cascade' }),
+  optionId: uuid('option_id').notNull().references(() => liveMatchPollOption.id, { onDelete: 'cascade' }),
+  anonymousUserId: uuid('anonymous_user_id').notNull(), // Generated UUID stored in cookie
+  createdAt: timestamp('created_at').defaultNow()
+}, (table) => ({
+  uniqueAnonymousUserPoll: unique('unique_anonymous_user_poll').on(table.pollId, table.anonymousUserId)
+}));

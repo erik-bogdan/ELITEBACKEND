@@ -8,6 +8,7 @@ import { applyRouter } from "./apply.router";
 import { userRouter } from "./user.router";
 import { logsRouter } from "./logs.router";
 import { adminUsersRouter } from "./admin.users.router";
+import { liveMatchesRouter } from "./live-matches.router";
 
 export const routers = [
   championshipRouter,
@@ -19,5 +20,6 @@ export const routers = [
   applyRouter,
   userRouter,
   logsRouter,
-  adminUsersRouter
+  adminUsersRouter,
+  liveMatchesRouter
 ]; 
