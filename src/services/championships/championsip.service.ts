@@ -381,10 +381,9 @@ export async function computeStandings(leagueId: string, opts?: { date?: string;
   // Get completed matches for league
   const filters: any[] = [eq(matches.leagueId, leagueId), eq(matches.matchStatus, 'completed')];
   if (typeof opts?.gameDay === 'number') {
-    // Use delayedGameDay if available, otherwise use gameDay
-    filters.push(
-      sql`COALESCE(${matches.delayedGameDay}, ${matches.gameDay}) = ${opts.gameDay}`
-    );
+    // Only use original gameDay, not delayedGameDay
+    // When filtering by gameDay, we only want matches that were originally scheduled for that gameDay
+    filters.push(eq(matches.gameDay, opts.gameDay));
   }
   if (typeof opts?.uptoGameDay === 'number') {
     // Use delayedGameDay if available, otherwise use gameDay

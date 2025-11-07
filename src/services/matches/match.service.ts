@@ -345,14 +345,9 @@ export async function getMatchesFiltered(opts: { seasonId?: string; leagueId?: s
   if (opts.delayedOnly) filters.push(eq(matches.isDelayed, true));
   if (opts.teamId) filters.push(or(eq(matches.homeTeamId, opts.teamId), eq(matches.awayTeamId, opts.teamId)));
   if (typeof opts.gameDay === 'number') {
-    // Match if gameDay equals the selected gameDay OR delayedGameDay equals the selected gameDay
-    // This way we get matches that have either the original or delayed gameDay matching
-    filters.push(
-      or(
-        eq(matches.gameDay, opts.gameDay),
-        eq(matches.delayedGameDay, opts.gameDay)
-      )
-    );
+s    // Only match original gameDay, not delayedGameDay
+    // When filtering by gameDay, we only want matches that were originally scheduled for that gameDay
+    filters.push(eq(matches.gameDay, opts.gameDay));
   }
 
   const homeTeams = alias(teams, 'home_teams');
