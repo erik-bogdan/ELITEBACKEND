@@ -1,0 +1,1 @@
+ALTER TABLE "matches" ADD COLUMN "is_playoff_match" boolean DEFAULT false NOT NULL;

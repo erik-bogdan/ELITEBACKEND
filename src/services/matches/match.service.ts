@@ -24,6 +24,7 @@ export interface CreateMatchInput {
   matchType: 'regular' | 'playoff' | 'final';
   matchRound: number;
   matchTable: number;
+  isPlayoffMatch?: boolean;
 }
 
 export async function createMatch(data: CreateMatchInput) {
@@ -51,6 +52,7 @@ export async function createMatch(data: CreateMatchInput) {
     matchTime: data.matchAt,
     matchStatus: data.matchStatus,
     matchType: data.matchType,
+    isPlayoffMatch: data.isPlayoffMatch ?? false,
     matchRound: data.matchRound,
     matchTable: data.matchTable,
     homeTeamScore: 0,
@@ -99,6 +101,7 @@ export async function getMatchesByLeague(leagueId: string) {
       matchTime: matches.matchTime,
       matchStatus: matches.matchStatus,
       matchType: matches.matchType,
+      isPlayoffMatch: matches.isPlayoffMatch,
       matchRound: matches.matchRound,
       gameDay: matches.gameDay,
       matchTable: matches.matchTable,
@@ -133,7 +136,7 @@ export async function getMatchesByLeague(leagueId: string) {
   .leftJoin(homeSecondPlayer, eq(matches.homeSecondPlayerId, homeSecondPlayer.id))
   .leftJoin(awayFirstPlayer, eq(matches.awayFirstPlayerId, awayFirstPlayer.id))
   .leftJoin(awaySecondPlayer, eq(matches.awaySecondPlayerId, awaySecondPlayer.id))
-  .where(eq(matches.leagueId, leagueId))
+  .where(and(eq(matches.leagueId, leagueId), eq(matches.isPlayoffMatch, false)))
   .orderBy(asc(matches.matchAt), asc(matches.matchTable));
 
   // Debug: log the first match to see if trackingData is included
@@ -204,6 +207,7 @@ export async function getMatchesByTeam(teamId: string, seasonId?: string) {
       matchTime: matches.matchTime,
       matchStatus: matches.matchStatus,
       matchType: matches.matchType,
+      isPlayoffMatch: matches.isPlayoffMatch,
       matchRound: matches.matchRound,
       gameDay: matches.gameDay,
       matchTable: matches.matchTable,
@@ -243,7 +247,8 @@ export async function getMatchesByTeam(teamId: string, seasonId?: string) {
   .where(
     and(
       or(eq(matches.homeTeamId, teamId), eq(matches.awayTeamId, teamId)),
-      inArray(matches.leagueId, leagueIdsForTeam)
+      inArray(matches.leagueId, leagueIdsForTeam),
+      eq(matches.isPlayoffMatch, false)
     )
   )
   .orderBy(asc(matches.matchAt), asc(matches.matchTable));
@@ -333,7 +338,7 @@ export async function updateMatchStatus(matchId: string, status: 'scheduled' | '
   return updatedMatch;
 } 
 
-export async function getMatchesFiltered(opts: { seasonId?: string; leagueId?: string; round?: number; gameDay?: number; page?: number; pageSize?: number; delayedOnly?: boolean; teamId?: string }) {
+export async function getMatchesFiltered(opts: { seasonId?: string; leagueId?: string; round?: number; gameDay?: number; page?: number; pageSize?: number; delayedOnly?: boolean; teamId?: string; isPlayoff?: 'regular' | 'playoff' | 'all' }) {
   const page = Number(opts.page) >= 1 ? Number(opts.page) : 1;
   const pageSize = Number(opts.pageSize) >= 1 ? Number(opts.pageSize) : 20;
   const offset = (page - 1) * pageSize;
@@ -344,8 +349,12 @@ export async function getMatchesFiltered(opts: { seasonId?: string; leagueId?: s
   if (opts.seasonId) filters.push(eq(leagues.seasonId, opts.seasonId));
   if (opts.delayedOnly) filters.push(eq(matches.isDelayed, true));
   if (opts.teamId) filters.push(or(eq(matches.homeTeamId, opts.teamId), eq(matches.awayTeamId, opts.teamId)));
+  const playoffMode = opts.isPlayoff ?? 'regular';
+  if (playoffMode !== 'all') {
+    filters.push(eq(matches.isPlayoffMatch, playoffMode === 'playoff'));
+  }
   if (typeof opts.gameDay === 'number') {
-s    // Only match original gameDay, not delayedGameDay
+    // Only match original gameDay, not delayedGameDay
     // When filtering by gameDay, we only want matches that were originally scheduled for that gameDay
     filters.push(eq(matches.gameDay, opts.gameDay));
   }
@@ -470,7 +479,7 @@ export async function getAvailableRoundsForLeague(leagueId: string) {
   const rows = await db
     .select({ round: matches.matchRound })
     .from(matches)
-    .where(eq(matches.leagueId, leagueId))
+    .where(and(eq(matches.leagueId, leagueId), eq(matches.isPlayoffMatch, false)))
     .groupBy(matches.matchRound)
     .orderBy(asc(matches.matchRound));
   const rounds = rows
@@ -493,6 +502,7 @@ export async function updateMatchAdmin(
     delayedDate?: string;
     delayedTime?: string;
     delayedTable?: number;
+    isPlayoffMatch?: boolean;
   }
 ) {
   const [existing] = await db.select().from(matches).where(eq(matches.id, matchId));
@@ -511,6 +521,7 @@ export async function updateMatchAdmin(
   if (typeof data.gameDay === 'number') update.gameDay = data.gameDay;
   if (typeof data.matchTable === 'number') update.matchTable = data.matchTable;
   if (data.matchStatus) update.matchStatus = data.matchStatus;
+  if (typeof data.isPlayoffMatch === 'boolean') update.isPlayoffMatch = data.isPlayoffMatch;
   
   // Delay fields
   if (typeof data.isDelayed === 'boolean') update.isDelayed = data.isDelayed;

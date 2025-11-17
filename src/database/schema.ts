@@ -188,6 +188,7 @@ export const matches = pgTable('matches', {
 	matchTime: timestamp('match_time').notNull(),
 	matchStatus: varchar('match_status', { length: 255 }).notNull(),
 	matchType: varchar('match_type', { length: 255 }).notNull(),
+	isPlayoffMatch: boolean('is_playoff_match').notNull().default(false),
 	matchRound: integer('match_round').notNull(),
 	gameDay: integer('game_day').notNull().default(1),
 	matchTable: integer('match_table').notNull(),

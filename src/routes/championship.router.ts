@@ -13,7 +13,11 @@ import {
   getAvailableTeamsForLeague,
   computeStandings,
   computeGameDayMvps,
-  computeRankSeries
+  computeRankSeries,
+  computeGroupedPlayoffTables,
+  generateGroupedPlayoffSchedule,
+  saveGroupedPlayoffSchedule,
+  getPlayoffHouseMatches
 } from '../services/championships/championsip.service';
 import { db } from '../db';
 import { leagueTeams, matches, leagues, seasons, teams, teamPlayers, players, playerInvitations } from '../database/schema';
@@ -414,6 +418,48 @@ export const championshipRouter = new Elysia({ prefix: '/api/championship' })
         delta: prevRank.has(r.teamId) ? (prevRank.get(r.teamId)! - r.rank) : 0
       }));
       return { standings: enriched };
+    } catch (error) {
+      set.status = 400;
+      return { error: true, message: error instanceof Error ? error.message : 'Unknown error occurred' };
+    }
+  })
+  .get('/:id/playoff/groups', async ({ params: { id }, set }) => {
+    try {
+      const groups = await computeGroupedPlayoffTables(id);
+      return groups;
+    } catch (error) {
+      set.status = 400;
+      return { error: true, message: error instanceof Error ? error.message : 'Unknown error occurred' };
+    }
+  })
+  .post('/:id/playoff/generate-schedule', async ({ params: { id }, body, set }) => {
+    try {
+      const { startTime, matchDuration, tables, gameDayDate } = body as any;
+      if (!startTime || typeof startTime !== 'string') throw new Error('Kezdési idő megadása kötelező');
+      if (!matchDuration || typeof matchDuration !== 'number') throw new Error('Meccshossz megadása kötelező');
+      if (!tables || typeof tables !== 'number') throw new Error('Asztalok számának megadása kötelező');
+      const result = await generateGroupedPlayoffSchedule(id, { startTime, matchDuration, tables, gameDayDate });
+      return result;
+    } catch (error) {
+      set.status = 400;
+      return { error: true, message: error instanceof Error ? error.message : 'Unknown error occurred' };
+    }
+  })
+  .post('/:id/playoff/save-schedule', async ({ params: { id }, body, set }) => {
+    try {
+      const { schedule } = body as any;
+      if (!Array.isArray(schedule) || schedule.length === 0) throw new Error('Hiányzó menetrend adatok');
+      const saved = await saveGroupedPlayoffSchedule(id, schedule);
+      return { success: true, saved };
+    } catch (error) {
+      set.status = 400;
+      return { error: true, message: error instanceof Error ? error.message : 'Unknown error occurred' };
+    }
+  })
+  .get('/:id/playoff/matches', async ({ params: { id }, set }) => {
+    try {
+      const payload = await getPlayoffHouseMatches(id);
+      return payload;
     } catch (error) {
       set.status = 400;
       return { error: true, message: error instanceof Error ? error.message : 'Unknown error occurred' };
