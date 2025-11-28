@@ -428,6 +428,7 @@ export async function getMatchesFiltered(opts: { seasonId?: string; leagueId?: s
         matchTime: matches.matchTime,
         matchStatus: matches.matchStatus,
         matchType: matches.matchType,
+        isPlayoffMatch: matches.isPlayoffMatch,
         matchRound: matches.matchRound,
         gameDay: matches.gameDay,
         matchTable: matches.matchTable,

@@ -17,7 +17,8 @@ import {
   computeGroupedPlayoffTables,
   generateGroupedPlayoffSchedule,
   saveGroupedPlayoffSchedule,
-  getPlayoffHouseMatches
+  getPlayoffHouseMatches,
+  getKnockoutBracketData
 } from '../services/championships/championsip.service';
 import { db } from '../db';
 import { leagueTeams, matches, leagues, seasons, teams, teamPlayers, players, playerInvitations } from '../database/schema';
@@ -460,6 +461,42 @@ export const championshipRouter = new Elysia({ prefix: '/api/championship' })
     try {
       const payload = await getPlayoffHouseMatches(id);
       return payload;
+    } catch (error) {
+      set.status = 400;
+      return { error: true, message: error instanceof Error ? error.message : 'Unknown error occurred' };
+    }
+  })
+  .post('/:id/knockout-playoff/generate', async ({ params: { id }, set }) => {
+    try {
+      const { generateKnockoutPlayoffMatches } = await import('../services/championships/championsip.service');
+      const result = await generateKnockoutPlayoffMatches(id);
+      return result;
+    } catch (error) {
+      set.status = 400;
+      return { error: true, message: error instanceof Error ? error.message : 'Unknown error occurred' };
+    }
+  })
+  .post('/:id/knockout-playoff/save', async ({ params: { id }, body, set }) => {
+    try {
+      const { saveKnockoutPlayoffMatches } = await import('../services/championships/championsip.service');
+      const { bestOf, matches } = body as any;
+      if (!bestOf || typeof bestOf !== 'number' || bestOf < 1) {
+        throw new Error('BO érték megadása kötelező (minimum 1)');
+      }
+      if (!Array.isArray(matches) || matches.length === 0) {
+        throw new Error('Hiányzó meccs adatok');
+      }
+      const saved = await saveKnockoutPlayoffMatches(id, { leagueId: id, bestOf, matches });
+      return { success: true, saved };
+    } catch (error) {
+      set.status = 400;
+      return { error: true, message: error instanceof Error ? error.message : 'Unknown error occurred' };
+    }
+  })
+  .get('/:id/knockout-bracket', async ({ params: { id }, set }) => {
+    try {
+      const bracketData = await getKnockoutBracketData(id);
+      return bracketData;
     } catch (error) {
       set.status = 400;
       return { error: true, message: error instanceof Error ? error.message : 'Unknown error occurred' };

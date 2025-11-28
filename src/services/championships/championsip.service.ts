@@ -849,6 +849,653 @@ export async function saveGroupedPlayoffSchedule(
   return rows.length;
 }
 
+export interface KnockoutPlayoffMatch {
+  id: string;
+  homeTeamId: string;
+  homeTeamName: string;
+  awayTeamId: string;
+  awayTeamName: string;
+  matchNumber: number; // 1, 2, 3... within the round
+  knockoutRound: number; // 1=quarter, 2=semi, 3=final
+  date?: string;
+  time?: string;
+}
+
+export interface GenerateKnockoutPlayoffMatchesInput {
+  leagueId: string;
+  bestOf: number; // BO 7 = 4 wins needed
+  matches: Array<{
+    homeTeamId: string;
+    awayTeamId: string;
+    matchNumber: number;
+    knockoutRound: number;
+    date?: string;
+    time?: string;
+    table: number;
+  }>;
+}
+
+export async function generateKnockoutPlayoffMatches(leagueId: string) {
+  const [league] = await db.select().from(leagues).where(eq(leagues.id, leagueId));
+  if (!league) throw new Error('League not found');
+
+  const props = (league.properties || {}) as any;
+  const hasKnockoutPlayoff = Boolean(props?.hasPlayoff && props?.playoffType === 'knockout');
+  if (!hasKnockoutPlayoff) {
+    throw new Error('Ehhez a bajnoksághoz nincs knockout playoff engedélyezve');
+  }
+
+  // Get BO number from properties or default to 7
+  const bestOf = props?.knockoutBestOf || 7;
+  const winsNeeded = Math.ceil(bestOf / 2);
+
+  // Check if all regular matches are completed (only for round 1)
+  const currentKnockoutRound = league.knockoutRound || 0;
+  if (currentKnockoutRound === 0) {
+    const [regularAgg] = await db
+      .select({
+        total: sql<number>`count(*)`,
+        completed: sql<number>`sum(case when ${matches.matchStatus} = 'completed' then 1 else 0 end)`
+      })
+      .from(matches)
+      .where(and(eq(matches.leagueId, leagueId), eq(matches.isPlayoffMatch, false)));
+    const totalRegular = Number(regularAgg?.total || 0);
+    const completedRegular = Number(regularAgg?.completed || 0);
+    if (totalRegular === 0 || totalRegular !== completedRegular) {
+      throw new Error('A knockout playoff csak az alapszakasz összes meccsének befejezése után indítható');
+    }
+  }
+
+  // Get current standings
+  const standings = await computeStandings(leagueId);
+  if (standings.length < 8) {
+    throw new Error('Legalább 8 csapat szükséges a knockout playoff-hoz');
+  }
+
+  let nextRound = currentKnockoutRound + 1;
+  let matchups: Array<{ homeTeamId: string; homeTeamName: string; awayTeamId: string; awayTeamName: string }> = [];
+
+  if (nextRound === 1) {
+    // Quarterfinals: 1-8, 4-5, 3-6, 7-2
+    const seeds = [1, 8, 4, 5, 3, 6, 7, 2];
+    for (let i = 0; i < seeds.length; i += 2) {
+      const homeSeed = seeds[i];
+      const awaySeed = seeds[i + 1];
+      const homeTeam = standings[homeSeed - 1];
+      const awayTeam = standings[awaySeed - 1];
+      if (!homeTeam || !awayTeam) {
+        throw new Error(`Nincs elég csapat a negyeddöntőhöz. Hiányzik a ${homeTeam ? awaySeed : homeSeed}. helyezett csapat.`);
+      }
+      matchups.push({
+        homeTeamId: homeTeam.teamId,
+        homeTeamName: homeTeam.name,
+        awayTeamId: awayTeam.teamId,
+        awayTeamName: awayTeam.name,
+      });
+    }
+  } else if (nextRound === 2) {
+    // Semifinals: need to check quarterfinal results
+    // Get quarterfinal matches - use gameDay = 1 to track quarterfinals
+    const quarterfinalMatches = await db
+      .select()
+      .from(matches)
+      .where(and(
+        eq(matches.leagueId, leagueId),
+        eq(matches.isPlayoffMatch, true),
+        eq(matches.gameDay, 1)
+      ))
+      .orderBy(asc(matches.matchRound));
+
+    // Group matches by matchup (each matchup has BO matches)
+    // IMPORTANT: Matches alternate home/away, so we need to track the original matchup order
+    // and determine which team is "home" for the series based on match number
+    const matchupResults = new Map<string, { 
+      homeWins: number; 
+      awayWins: number; 
+      originalHomeTeamId: string; 
+      originalAwayTeamId: string;
+      matchCount: number; // Track how many matches we've seen for this matchup
+    }>();
+    
+    for (const match of quarterfinalMatches) {
+      // Sort team IDs to create consistent key regardless of home/away order
+      const teamIds = [match.homeTeamId, match.awayTeamId].sort();
+      const key = `${teamIds[0]}-${teamIds[1]}`;
+      
+      if (!matchupResults.has(key)) {
+        // First match of this matchup - determine original home/away based on first match
+        matchupResults.set(key, { 
+          homeWins: 0, 
+          awayWins: 0, 
+          originalHomeTeamId: match.homeTeamId, 
+          originalAwayTeamId: match.awayTeamId,
+          matchCount: 0
+        });
+      }
+      
+      const result = matchupResults.get(key)!;
+      result.matchCount++;
+      
+      if (match.matchStatus === 'completed' && match.homeTeamScore !== null && match.awayTeamScore !== null) {
+        // Determine which team is "home" for this specific match in the series
+        // Odd matches (1,3,5,7): original home team is home
+        // Even matches (2,4,6): original away team is home
+        const matchNumber = result.matchCount;
+        const isOddMatch = matchNumber % 2 === 1;
+        const isOriginalHomeTeamHomeThisMatch = isOddMatch;
+        
+        // Determine which team won from the perspective of the original matchup
+        if (match.homeTeamScore > match.awayTeamScore) {
+          // The team that was home in this match won
+          if (isOriginalHomeTeamHomeThisMatch) {
+            // Original home team was home and won
+            result.homeWins++;
+          } else {
+            // Original away team was home and won (so they win from original perspective)
+            result.awayWins++;
+          }
+        } else if (match.awayTeamScore > match.homeTeamScore) {
+          // The team that was away in this match won
+          if (isOriginalHomeTeamHomeThisMatch) {
+            // Original away team was away and won (so they win from original perspective)
+            result.awayWins++;
+          } else {
+            // Original home team was away and won
+            result.homeWins++;
+          }
+        }
+      }
+    }
+
+    // Determine winners and create semifinal matchups
+    // IMPORTANT: Only include teams that reached winsNeeded (e.g., 4 wins in BO7)
+    const winners: string[] = [];
+    for (const [key, result] of matchupResults.entries()) {
+      // Check if someone reached winsNeeded (e.g., 4 wins in BO7)
+      if (result.homeWins >= winsNeeded) {
+        winners.push(result.originalHomeTeamId);
+      } else if (result.awayWins >= winsNeeded) {
+        winners.push(result.originalAwayTeamId);
+      }
+      // Don't include teams that haven't reached winsNeeded yet
+    }
+
+    if (quarterfinalMatches.length === 0) {
+      throw new Error('Nincsenek negyeddöntő meccsek. Először generáld a negyeddöntő meccseket!');
+    }
+
+    if (matchupResults.size < 4) {
+      throw new Error(`Nincs elég negyeddöntő párharc befejezve. Jelenleg ${matchupResults.size} párharc van, de 4 szükséges az elődöntőhöz.`);
+    }
+
+    if (winners.length < 4) {
+      throw new Error(`Nincs elég győztes a negyeddöntőből. Jelenleg ${winners.length} győztes van, de 4 szükséges az elődöntőhöz.`);
+    }
+
+    // Create semifinal matchups: winner1 vs winner2, winner3 vs winner4
+    matchups.push({
+      homeTeamId: winners[0],
+      homeTeamName: standings.find(s => s.teamId === winners[0])?.name || '',
+      awayTeamId: winners[1],
+      awayTeamName: standings.find(s => s.teamId === winners[1])?.name || '',
+    });
+    matchups.push({
+      homeTeamId: winners[2],
+      homeTeamName: standings.find(s => s.teamId === winners[2])?.name || '',
+      awayTeamId: winners[3],
+      awayTeamName: standings.find(s => s.teamId === winners[3])?.name || '',
+    });
+  } else if (nextRound === 3) {
+    // Finals: need to check semifinal results
+    // Get semifinal matches - use gameDay = 2 to track semifinals
+    const semifinalMatches = await db
+      .select()
+      .from(matches)
+      .where(and(
+        eq(matches.leagueId, leagueId),
+        eq(matches.isPlayoffMatch, true),
+        eq(matches.gameDay, 2)
+      ))
+      .orderBy(asc(matches.matchRound));
+
+    const matchupResults = new Map<string, { 
+      homeWins: number; 
+      awayWins: number; 
+      originalHomeTeamId: string; 
+      originalAwayTeamId: string;
+      matchCount: number;
+    }>();
+    
+    for (const match of semifinalMatches) {
+      // Sort team IDs to create consistent key regardless of home/away order
+      const teamIds = [match.homeTeamId, match.awayTeamId].sort();
+      const key = `${teamIds[0]}-${teamIds[1]}`;
+      
+      if (!matchupResults.has(key)) {
+        matchupResults.set(key, { 
+          homeWins: 0, 
+          awayWins: 0, 
+          originalHomeTeamId: match.homeTeamId, 
+          originalAwayTeamId: match.awayTeamId,
+          matchCount: 0
+        });
+      }
+      
+      const result = matchupResults.get(key)!;
+      result.matchCount++;
+      
+      if (match.matchStatus === 'completed' && match.homeTeamScore !== null && match.awayTeamScore !== null) {
+        // Determine which team is "home" for this specific match in the series
+        const matchNumber = result.matchCount;
+        const isOddMatch = matchNumber % 2 === 1;
+        const isOriginalHomeTeamHomeThisMatch = isOddMatch;
+        
+        if (match.homeTeamScore > match.awayTeamScore) {
+          if (isOriginalHomeTeamHomeThisMatch) {
+            result.homeWins++;
+          } else {
+            result.awayWins++;
+          }
+        } else if (match.awayTeamScore > match.homeTeamScore) {
+          if (isOriginalHomeTeamHomeThisMatch) {
+            result.awayWins++;
+          } else {
+            result.homeWins++;
+          }
+        }
+      }
+    }
+
+    const winners: string[] = [];
+    for (const [key, result] of matchupResults.entries()) {
+      // Check if someone reached winsNeeded (e.g., 4 wins in BO7)
+      if (result.homeWins >= winsNeeded) {
+        winners.push(result.originalHomeTeamId);
+      } else if (result.awayWins >= winsNeeded) {
+        winners.push(result.originalAwayTeamId);
+      }
+      // Don't include teams that haven't reached winsNeeded yet
+    }
+
+    if (semifinalMatches.length === 0) {
+      throw new Error('Nincsenek elődöntő meccsek. Először generáld az elődöntő meccseket!');
+    }
+
+    if (matchupResults.size < 2) {
+      throw new Error(`Nincs elég elődöntő párharc befejezve. Jelenleg ${matchupResults.size} párharc van, de 2 szükséges a döntőhöz.`);
+    }
+
+    if (winners.length < 2) {
+      throw new Error(`Nincs elég győztes az elődöntőből. Jelenleg ${winners.length} győztes van, de 2 szükséges a döntőhöz.`);
+    }
+
+    matchups.push({
+      homeTeamId: winners[0],
+      homeTeamName: standings.find(s => s.teamId === winners[0])?.name || '',
+      awayTeamId: winners[1],
+      awayTeamName: standings.find(s => s.teamId === winners[1])?.name || '',
+    });
+  } else {
+    throw new Error('Érvénytelen knockout round');
+  }
+
+  if (matchups.length === 0) {
+    throw new Error(`Nem sikerült párharcokat generálni a ${nextRound === 1 ? 'negyeddöntőhöz' : nextRound === 2 ? 'elődöntőhöz' : 'döntőhöz'}. Ellenőrizd, hogy minden szükséges meccs le van-e játszva.`);
+  }
+
+  return {
+    matchups,
+    knockoutRound: nextRound,
+    totalMatchups: matchups.length,
+  };
+}
+
+export interface KnockoutBracketMatchup {
+  homeTeamId: string;
+  homeTeamName: string;
+  awayTeamId: string;
+  awayTeamName: string;
+  homeWins: number;
+  awayWins: number;
+  winnerId?: string;
+  isComplete: boolean;
+}
+
+export async function getKnockoutBracketData(leagueId: string) {
+  const [league] = await db.select().from(leagues).where(eq(leagues.id, leagueId));
+  if (!league) throw new Error('League not found');
+
+  const props = (league.properties || {}) as any;
+  const hasKnockoutPlayoff = Boolean(props?.hasPlayoff && props?.playoffType === 'knockout');
+  if (!hasKnockoutPlayoff) {
+    return null;
+  }
+
+  // Get BO number from properties or default to 7
+  const bestOf = props?.knockoutBestOf || 7;
+  const winsNeeded = Math.ceil(bestOf / 2);
+
+  // Get standings for team names
+  const standings = await computeStandings(leagueId);
+  const teamMap = new Map<string, { name: string; seed: number }>();
+  standings.forEach((s: any, idx: number) => {
+    teamMap.set(s.teamId, { name: s.name, seed: idx + 1 });
+  });
+
+  const result: {
+    quarterfinals: KnockoutBracketMatchup[];
+    semifinals: KnockoutBracketMatchup[];
+    finals: KnockoutBracketMatchup[];
+  } = {
+    quarterfinals: [],
+    semifinals: [],
+    finals: [],
+  };
+
+  // Get all playoff matches grouped by round (gameDay)
+  const allPlayoffMatches = await db
+    .select()
+    .from(matches)
+    .where(and(
+      eq(matches.leagueId, leagueId),
+      eq(matches.isPlayoffMatch, true)
+    ))
+    .orderBy(asc(matches.gameDay), asc(matches.matchRound));
+
+  // Process quarterfinals (gameDay = 1)
+  const quarterfinalMatches = allPlayoffMatches.filter(m => m.gameDay === 1);
+  const quarterfinalMatchups = new Map<string, KnockoutBracketMatchup>();
+
+  // Expected quarterfinal seeds: 1-8, 4-5, 3-6, 7-2
+  const quarterfinalSeeds = [1, 8, 4, 5, 3, 6, 7, 2];
+  for (let i = 0; i < quarterfinalSeeds.length; i += 2) {
+    const homeSeed = quarterfinalSeeds[i];
+    const awaySeed = quarterfinalSeeds[i + 1];
+    const homeTeam = standings[homeSeed - 1];
+    const awayTeam = standings[awaySeed - 1];
+    if (homeTeam && awayTeam) {
+      const key = `${homeTeam.teamId}-${awayTeam.teamId}`;
+      quarterfinalMatchups.set(key, {
+        homeTeamId: homeTeam.teamId,
+        homeTeamName: homeTeam.name,
+        awayTeamId: awayTeam.teamId,
+        awayTeamName: awayTeam.name,
+        homeWins: 0,
+        awayWins: 0,
+        isComplete: false,
+      });
+    }
+  }
+
+  // Count wins from quarterfinal matches
+  // Track match count per matchup to handle alternating home/away
+  const matchupMatchCounts = new Map<string, number>();
+  for (const match of quarterfinalMatches) {
+    const key = `${match.homeTeamId}-${match.awayTeamId}`;
+    const reverseKey = `${match.awayTeamId}-${match.homeTeamId}`;
+    const matchup = quarterfinalMatchups.get(key) || quarterfinalMatchups.get(reverseKey);
+    
+    if (matchup) {
+      // Track match number for this matchup
+      const matchupKey = matchup.homeTeamId < matchup.awayTeamId 
+        ? `${matchup.homeTeamId}-${matchup.awayTeamId}`
+        : `${matchup.awayTeamId}-${matchup.homeTeamId}`;
+      const currentMatchCount = matchupMatchCounts.get(matchupKey) || 0;
+      matchupMatchCounts.set(matchupKey, currentMatchCount + 1);
+      const matchNumber = currentMatchCount + 1;
+      
+      if (match.matchStatus === 'completed' && match.homeTeamScore !== null && match.awayTeamScore !== null) {
+        // Determine which team is "home" for this specific match in the series
+        // Odd matches (1,3,5,7): original home team is home
+        // Even matches (2,4,6): original away team is home
+        const isOddMatch = matchNumber % 2 === 1;
+        const isOriginalHomeTeamHomeThisMatch = isOddMatch;
+        
+        if (match.homeTeamScore > match.awayTeamScore) {
+          if (isOriginalHomeTeamHomeThisMatch) {
+            matchup.homeWins++;
+          } else {
+            matchup.awayWins++;
+          }
+        } else if (match.awayTeamScore > match.homeTeamScore) {
+          if (isOriginalHomeTeamHomeThisMatch) {
+            matchup.awayWins++;
+          } else {
+            matchup.homeWins++;
+          }
+        }
+        
+        // Check if someone reached winsNeeded
+        if (matchup.homeWins >= winsNeeded || matchup.awayWins >= winsNeeded) {
+          matchup.isComplete = true;
+          matchup.winnerId = matchup.homeWins >= winsNeeded ? matchup.homeTeamId : matchup.awayTeamId;
+        }
+      }
+    }
+  }
+
+  result.quarterfinals = Array.from(quarterfinalMatchups.values());
+
+  // Process semifinals (gameDay = 2) - only if quarterfinals are complete
+  const semifinalMatches = allPlayoffMatches.filter(m => m.gameDay === 2);
+  if (semifinalMatches.length > 0) {
+    const semifinalMatchups = new Map<string, KnockoutBracketMatchup>();
+
+    // Get quarterfinal winners
+    const quarterfinalWinners = result.quarterfinals
+      .filter(m => m.winnerId)
+      .map(m => m.winnerId!)
+      .slice(0, 4); // Top 4 winners
+
+    if (quarterfinalWinners.length >= 4) {
+      // Create semifinal matchups: winner1 vs winner2, winner3 vs winner4
+      const semi1Key = `${quarterfinalWinners[0]}-${quarterfinalWinners[1]}`;
+      const semi2Key = `${quarterfinalWinners[2]}-${quarterfinalWinners[3]}`;
+      
+      semifinalMatchups.set(semi1Key, {
+        homeTeamId: quarterfinalWinners[0],
+        homeTeamName: teamMap.get(quarterfinalWinners[0])?.name || '',
+        awayTeamId: quarterfinalWinners[1],
+        awayTeamName: teamMap.get(quarterfinalWinners[1])?.name || '',
+        homeWins: 0,
+        awayWins: 0,
+        isComplete: false,
+      });
+
+      semifinalMatchups.set(semi2Key, {
+        homeTeamId: quarterfinalWinners[2],
+        homeTeamName: teamMap.get(quarterfinalWinners[2])?.name || '',
+        awayTeamId: quarterfinalWinners[3],
+        awayTeamName: teamMap.get(quarterfinalWinners[3])?.name || '',
+        homeWins: 0,
+        awayWins: 0,
+        isComplete: false,
+      });
+
+      // Count wins from semifinal matches
+      // Track match count per matchup to handle alternating home/away
+      const semifinalMatchCounts = new Map<string, number>();
+      for (const match of semifinalMatches) {
+        const key = `${match.homeTeamId}-${match.awayTeamId}`;
+        const reverseKey = `${match.awayTeamId}-${match.homeTeamId}`;
+        const matchup = semifinalMatchups.get(key) || semifinalMatchups.get(reverseKey);
+        
+        if (matchup) {
+          // Track match number for this matchup
+          const matchupKey = matchup.homeTeamId < matchup.awayTeamId 
+            ? `${matchup.homeTeamId}-${matchup.awayTeamId}`
+            : `${matchup.awayTeamId}-${matchup.homeTeamId}`;
+          const currentMatchCount = semifinalMatchCounts.get(matchupKey) || 0;
+          semifinalMatchCounts.set(matchupKey, currentMatchCount + 1);
+          const matchNumber = currentMatchCount + 1;
+          
+          if (match.matchStatus === 'completed' && match.homeTeamScore !== null && match.awayTeamScore !== null) {
+            // Determine which team is "home" for this specific match in the series
+            const isOddMatch = matchNumber % 2 === 1;
+            const isOriginalHomeTeamHomeThisMatch = isOddMatch;
+            
+            if (match.homeTeamScore > match.awayTeamScore) {
+              if (isOriginalHomeTeamHomeThisMatch) {
+                matchup.homeWins++;
+              } else {
+                matchup.awayWins++;
+              }
+            } else if (match.awayTeamScore > match.homeTeamScore) {
+              if (isOriginalHomeTeamHomeThisMatch) {
+                matchup.awayWins++;
+              } else {
+                matchup.homeWins++;
+              }
+            }
+            
+            if (matchup.homeWins >= winsNeeded || matchup.awayWins >= winsNeeded) {
+              matchup.isComplete = true;
+              matchup.winnerId = matchup.homeWins >= winsNeeded ? matchup.homeTeamId : matchup.awayTeamId;
+            }
+          }
+        }
+      }
+
+      result.semifinals = Array.from(semifinalMatchups.values());
+    }
+  }
+
+  // Process finals (gameDay = 3)
+  const finalMatches = allPlayoffMatches.filter(m => m.gameDay === 3);
+  if (finalMatches.length > 0 && result.semifinals.length >= 2) {
+    const semifinalWinners = result.semifinals
+      .filter(m => m.winnerId)
+      .map(m => m.winnerId!)
+      .slice(0, 2);
+
+    if (semifinalWinners.length >= 2) {
+      const finalMatchup: KnockoutBracketMatchup = {
+        homeTeamId: semifinalWinners[0],
+        homeTeamName: teamMap.get(semifinalWinners[0])?.name || '',
+        awayTeamId: semifinalWinners[1],
+        awayTeamName: teamMap.get(semifinalWinners[1])?.name || '',
+        homeWins: 0,
+        awayWins: 0,
+        isComplete: false,
+      };
+
+      // Count wins from final matches
+      // Track match count to handle alternating home/away
+      let finalMatchCount = 0;
+      for (const match of finalMatches) {
+        finalMatchCount++;
+        const matchNumber = finalMatchCount;
+        const isOddMatch = matchNumber % 2 === 1;
+        const isOriginalHomeTeamHomeThisMatch = isOddMatch;
+        
+        if (match.matchStatus === 'completed' && match.homeTeamScore !== null && match.awayTeamScore !== null) {
+          if (match.homeTeamScore > match.awayTeamScore) {
+            if (isOriginalHomeTeamHomeThisMatch) {
+              finalMatchup.homeWins++;
+            } else {
+              finalMatchup.awayWins++;
+            }
+          } else if (match.awayTeamScore > match.homeTeamScore) {
+            if (isOriginalHomeTeamHomeThisMatch) {
+              finalMatchup.awayWins++;
+            } else {
+              finalMatchup.homeWins++;
+            }
+          }
+          
+          if (finalMatchup.homeWins >= winsNeeded || finalMatchup.awayWins >= winsNeeded) {
+            finalMatchup.isComplete = true;
+            finalMatchup.winnerId = finalMatchup.homeWins >= winsNeeded ? finalMatchup.homeTeamId : finalMatchup.awayTeamId;
+          }
+        }
+      }
+
+      result.finals = [finalMatchup];
+    }
+  }
+
+  return result;
+}
+
+export async function saveKnockoutPlayoffMatches(
+  leagueId: string,
+  input: GenerateKnockoutPlayoffMatchesInput
+) {
+  const [league] = await db.select().from(leagues).where(eq(leagues.id, leagueId));
+  if (!league) throw new Error('League not found');
+
+  const relations = await db.select().from(leagueTeams).where(eq(leagueTeams.leagueId, leagueId));
+  const teamToLeagueTeam = new Map<string, string>();
+  for (const rel of relations as any[]) {
+    teamToLeagueTeam.set(String(rel.teamId), rel.id);
+  }
+
+  // Get max round from regular matches
+  const maxRoundRows = await db
+    .select({ maxRound: sql<number>`COALESCE(MAX(${matches.matchRound}), 0)` })
+    .from(matches)
+    .where(and(eq(matches.leagueId, leagueId), eq(matches.isPlayoffMatch, false)));
+  const baseRound = Number(maxRoundRows?.[0]?.maxRound || 0);
+
+  const rows: any[] = [];
+  let matchRoundCounter = baseRound + 1;
+
+  for (const matchInput of input.matches) {
+    const homeId = String(matchInput.homeTeamId);
+    const awayId = String(matchInput.awayTeamId);
+    const homeLeagueTeamId = teamToLeagueTeam.get(homeId) || null;
+    const awayLeagueTeamId = teamToLeagueTeam.get(awayId) || null;
+
+    // Parse date and time
+    let matchAt: Date;
+    if (matchInput.date && matchInput.time) {
+      const iso = `${matchInput.date}T${matchInput.time}:00`;
+      matchAt = new Date(iso);
+    } else {
+      throw new Error(`Meccs ${matchInput.matchNumber} (Round ${matchInput.knockoutRound}): dátum és idő megadása kötelező`);
+    }
+
+    const matchDate = matchInput.date ? new Date(matchInput.date) : new Date(matchAt);
+    const matchTime = new Date(`${matchInput.date}T${matchInput.time}:00`);
+
+    rows.push({
+      leagueId,
+      teamId: homeId,
+      homeTeamId: homeId,
+      awayTeamId: awayId,
+      homeLeagueTeamId,
+      awayLeagueTeamId,
+      homeTeamScore: 0,
+      awayTeamScore: 0,
+      matchAt,
+      matchDate,
+      matchTime,
+      matchStatus: 'scheduled',
+      matchType: 'playoff',
+      isPlayoffMatch: true,
+      matchRound: matchRoundCounter++,
+      gameDay: matchInput.knockoutRound, // Use gameDay to track which knockout round (1=quarter, 2=semi, 3=final)
+      matchTable: matchInput.table || 1,
+      trackingActive: 0,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    });
+  }
+
+  if (rows.length === 0) {
+    throw new Error('Nincs meccs a mentéshez');
+  }
+
+  await db.insert(matches as any).values(rows as any);
+
+  // Update league knockoutRound
+  await db.update(leagues)
+    .set({ knockoutRound: input.matches[0]?.knockoutRound || 1 })
+    .where(eq(leagues.id, leagueId));
+
+  return rows.length;
+}
+
 export async function getPlayoffHouseMatches(leagueId: string) {
   const groups = await computeGroupedPlayoffTables(leagueId);
   if (!groups.enabled) {
@@ -982,10 +1629,10 @@ export async function computeGameDayMvps(leagueId: string) {
 }
 
 export async function computeRankSeries(leagueId: string, teamId: string) {
-  // find max round in this league
+  // find max round in this league (exclude playoff matches)
   const rows = await db.select({ maxRound: sql<number>`COALESCE(MAX(${matches.matchRound}), 0)` })
     .from(matches)
-    .where(eq(matches.leagueId, leagueId));
+    .where(and(eq(matches.leagueId, leagueId), eq(matches.isPlayoffMatch, false)));
   const maxRound = Number(rows?.[0]?.maxRound || 0);
   const series: { round: number; rank: number | null }[] = [];
   if (maxRound <= 0) return series;
