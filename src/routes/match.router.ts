@@ -10,7 +10,8 @@ import {
   updateMatchStatus,
   getMatchesFiltered,
   getAvailableRoundsForLeague,
-  updateMatchAdmin
+  updateMatchAdmin,
+  deleteMatchById,
 } from '../services/matches/match.service';
 import { LoggingService } from '../services/logging.service';
 import { auth } from '../plugins/auth/auth';
@@ -223,6 +224,17 @@ export const matchRouter = new Elysia({ prefix: '/api/matches' })
       summary: 'Update match status',
       tags: ['Matches']
     }
+  })
+  .delete('/:id', async ({ params }) => {
+    return await deleteMatchById(params.id);
+  }, {
+    params: t.Object({
+      id: t.String(),
+    }),
+    detail: {
+      summary: 'Delete match by ID',
+      tags: ['Matches'],
+    },
   })
   .get('/:id/meta', async ({ params }) => {
     const id = params.id;

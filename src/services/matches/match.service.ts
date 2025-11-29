@@ -336,7 +336,15 @@ export async function updateMatchStatus(matchId: string, status: 'scheduled' | '
     .returning();
 
   return updatedMatch;
-} 
+}
+
+export async function deleteMatchById(matchId: string) {
+  const [deleted] = await db.delete(matches).where(eq(matches.id, matchId)).returning();
+  if (!deleted) {
+    throw new Error('Match not found');
+  }
+  return deleted;
+}
 
 export async function getMatchesFiltered(opts: { seasonId?: string; leagueId?: string; round?: number; gameDay?: number; page?: number; pageSize?: number; delayedOnly?: boolean; teamId?: string; isPlayoff?: 'regular' | 'playoff' | 'all' }) {
   const page = Number(opts.page) >= 1 ? Number(opts.page) : 1;
