@@ -1,6 +1,6 @@
 import { db } from '../../db';
 import { leagues, teams, leagueTeams, seasons, teamPlayers, matches, players } from '../../database/schema';
-import { eq, and, inArray, ne, sql, gte, lt, asc, lte } from 'drizzle-orm';
+import { eq, and, inArray, ne, sql, gte, lt, asc, lte, desc } from 'drizzle-orm';
 import { alias } from 'drizzle-orm/pg-core';
 
 export type Match = {
@@ -21,6 +21,59 @@ export interface SchedulerInput {
   startTime?: string;    
   matchDuration?: number; 
   tables?: number;
+}
+
+/**
+ * Copy team_players from the most recent previous season (where this team had players) into the new season.
+ * So when adding a team to a new season's league, the same players are linked to the same team for the new season.
+ * Returns the number of player links copied.
+ */
+export async function copyTeamPlayersFromPreviousSeason(teamId: string, newSeasonId: string): Promise<number> {
+  // Find the most recent season (by createdAt) where this team had at least one team_player, excluding newSeasonId
+  const previousSeasonsWithTeam = await db
+    .select({ seasonId: teamPlayers.seasonId })
+    .from(teamPlayers)
+    .innerJoin(seasons, eq(teamPlayers.seasonId, seasons.id))
+    .where(and(eq(teamPlayers.teamId, teamId), ne(teamPlayers.seasonId, newSeasonId)))
+    .groupBy(teamPlayers.seasonId, seasons.createdAt)
+    .orderBy(desc(seasons.createdAt))
+    .limit(1);
+
+  if (previousSeasonsWithTeam.length === 0) return 0;
+
+  const prevSeasonId = previousSeasonsWithTeam[0].seasonId;
+
+  const previousRoster = await db
+    .select({ playerId: teamPlayers.playerId, captain: teamPlayers.captain })
+    .from(teamPlayers)
+    .where(and(eq(teamPlayers.teamId, teamId), eq(teamPlayers.seasonId, prevSeasonId)));
+
+  if (previousRoster.length === 0) return 0;
+
+  let copied = 0;
+  let captainCopied = false;
+  for (const row of previousRoster) {
+    const existing = await db
+      .select()
+      .from(teamPlayers)
+      .where(and(
+        eq(teamPlayers.teamId, teamId),
+        eq(teamPlayers.playerId, row.playerId),
+        eq(teamPlayers.seasonId, newSeasonId)
+      ));
+    if (existing.length > 0) continue;
+    // Only one captain per team per season: use the first captain from previous roster
+    const setCaptain = row.captain && !captainCopied;
+    if (setCaptain) captainCopied = true;
+    await db.insert(teamPlayers).values({
+      teamId,
+      playerId: row.playerId,
+      seasonId: newSeasonId,
+      captain: setCaptain
+    });
+    copied++;
+  }
+  return copied;
 }
 
 // Championship (League) management functions
@@ -57,6 +110,9 @@ export async function addTeamToLeague(leagueId: string, teamId: string): Promise
     teamId,
     status: 'pending'
   });
+
+  // Copy team_players from the most recent previous season for this team into the new season (league's season)
+  await copyTeamPlayersFromPreviousSeason(teamId, league.seasonId as string);
 }
 
 export async function removeTeamFromLeague(leagueId: string, teamId: string): Promise<void> {
@@ -1652,10 +1708,15 @@ export async function getChampionship(id: string): Promise<typeof leagues.$infer
   return championship || null;
 }
 
-export async function getAllChampionships(): Promise<typeof leagues.$inferSelect[]> {
+export async function getAllChampionships(opts?: { includeInactive?: boolean }): Promise<typeof leagues.$inferSelect[]> {
+  const includeInactive = opts?.includeInactive === true;
   return await db.select()
     .from(leagues)
-    .where(eq(leagues.isArchived, false))
+    .where(
+      includeInactive
+        ? eq(leagues.isArchived, false)
+        : and(eq(leagues.isArchived, false), eq(leagues.isActive, true))
+    )
     .orderBy(leagues.createdAt);
 }
 

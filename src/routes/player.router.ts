@@ -478,6 +478,10 @@ export const playerRouter = new Elysia({ prefix: '/api/players' })
         teamName = team?.name;
       }
 
+      // Check if this email already has a user account (existing user → show login instead of registration)
+      const [existingUserRow] = await db.select().from(user).where(eq(user.email, invite.email));
+      const existingUser = !!existingUserRow;
+
       return {
         success: true,
         data: {
@@ -488,7 +492,8 @@ export const playerRouter = new Elysia({ prefix: '/api/players' })
           lastName: player.lastName,
           fullName: [player.firstName, player.lastName].filter(Boolean).join(' ').trim() || player.nickname,
           teamName,
-          expiresAt: invite.expiresAt
+          expiresAt: invite.expiresAt,
+          existingUser
         }
       };
     } catch (e) {
@@ -633,7 +638,18 @@ export const playerRouter = new Elysia({ prefix: '/api/players' })
         set.status = 400;
         return { error: true, message: 'Token expired' };
       }
-      
+      if (invite.status !== 'pending') {
+        set.status = 400;
+        return { error: true, message: 'A meghívó már felhasználva' };
+      }
+      // Only allow linking if the logged-in user's email matches the invite email
+      const sessionEmail = (session.user.email as string || '').trim().toLowerCase();
+      const inviteEmail = (invite.email || '').trim().toLowerCase();
+      if (sessionEmail !== inviteEmail) {
+        set.status = 403;
+        return { error: true, message: 'A meghívó egy másik e-mail címre szól. Jelentkezz be azzal a fiókkal.' };
+      }
+
       // Link user to player
       await db.update(players).set({ userId: session.user.id }).where(eq(players.id, invite.playerId));
       

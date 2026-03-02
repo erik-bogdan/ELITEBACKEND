@@ -92,7 +92,7 @@ export default function TeamInviteEmail({
 }
 
 TeamInviteEmail.PreviewProps = {
-championshipName: 'ELITE Beerpong 2025/2026 Ősz',
+championshipName: 'ELITE Beerpong 2025/2026 Tavasz',
   teamName: ' Új csapat',
   inviteUrl: 'https://example.com/invite/abc123',
   recipientName: 'Erik',

@@ -49,7 +49,7 @@ export const applyRouter = new Elysia({ prefix: '/api/apply' })
         return { error: true, message: 'No player linked to this user' };
       }
 
-      // Check captain in team_players for this team and league season
+      // Any team member (not only captain) can access apply: check they are in this team for the league season
       const [tp] = await db
         .select()
         .from(teamPlayers)
@@ -64,17 +64,11 @@ export const applyRouter = new Elysia({ prefix: '/api/apply' })
         return { error: true, message: 'Player is not assigned to this team for the league season' };
       }
 
-      const isCaptain = !!tp.captain;
-      if (!isCaptain) {
-        set.status = 403;
-        return { error: true, message: 'Not team captain for this team-season' };
-      }
-
       return {
         teamId: lt.teamId,
         seasonId: lg.seasonId,
         teamName: team.name,
-        isCaptain: true,
+        isCaptain: !!tp.captain,
         status: lt.status,
       };
     } catch (e) {
@@ -104,12 +98,12 @@ export const applyRouter = new Elysia({ prefix: '/api/apply' })
       const [lg] = await db.select().from(leagues).where(eq(leagues.id, lt.leagueId));
       if (!lg) { set.status = 404; return { error: true, message: 'League not found' }; }
 
-      // Ensure requester is captain of current team-season
+      // Any team member can decline (not only captain)
       const [me] = await db.select().from(players).where(eq(players.userId, session.user.id));
       if (!me) { set.status = 403; return { error: true, message: 'No player linked to this user' }; }
       const [tpAuth] = await db.select().from(teamPlayers)
         .where(and(eq(teamPlayers.teamId, lt.teamId), eq(teamPlayers.seasonId, lg.seasonId), eq(teamPlayers.playerId, me.id)));
-      if (!tpAuth || !tpAuth.captain) { set.status = 403; return { error: true, message: 'Not team captain' }; }
+      if (!tpAuth) { set.status = 403; return { error: true, message: 'Not a member of this team for this season' }; }
 
       await db.update(leagueTeams)
         .set({ status: 'declined', declineReason: 'team_declined', updatedAt: new Date() })
@@ -154,24 +148,22 @@ export const applyRouter = new Elysia({ prefix: '/api/apply' })
       if (!lt) { set.status = 404; return { error: true, message: 'League team not found' }; }
       const [lg] = await db.select().from(leagues).where(eq(leagues.id, lt.leagueId));
       if (!lg) { set.status = 404; return { error: true, message: 'League not found' }; }
+      const [teamRow] = await db.select({ name: teams.name }).from(teams).where(eq(teams.id, lt.teamId));
+      const currentTeamName = teamRow?.name || '';
 
-      // Ensure requester is captain of current team-season
+      // Any team member can confirm (not only captain)
       const [me] = await db.select().from(players).where(eq(players.userId, session.user.id));
       if (!me) { set.status = 403; return { error: true, message: 'No player linked to this user' }; }
       const [tpAuth] = await db.select().from(teamPlayers)
         .where(and(eq(teamPlayers.teamId, lt.teamId), eq(teamPlayers.seasonId, lg.seasonId), eq(teamPlayers.playerId, me.id)));
-      if (!tpAuth || !tpAuth.captain) { set.status = 403; return { error: true, message: 'Not team captain' }; }
+      if (!tpAuth) { set.status = 403; return { error: true, message: 'Not a member of this team for this season' }; }
 
-      // Enforce unique, non-empty emails across players/users when provided, except current captain's session email
-      const sessionEmail = session.user.email as string | undefined;
+      // Enforce non-empty emails and no duplicate use of same email for a different player
       for (const p of inputPlayers) {
         const e = String(p.email || '').trim();
         if (!e) { set.status = 400; return { error: true, message: 'Minden játékoshoz szükséges e-mail cím megadása.' }; }
-        if (sessionEmail && e.toLowerCase() === sessionEmail.toLowerCase()) continue;
         const [px] = await db.select().from(players).where(eq(players.email, e));
-        if (px && (!p.id || px.id !== p.id)) { set.status = 400; return { error: true, message: `Már létező e-mail cím: ${e}` }; }
-        const [ux] = await db.select().from(user).where(eq(user.email, e));
-        if (ux) { set.status = 400; return { error: true, message: `Felhasználóhoz tartozó e-mail cím: ${e}` }; }
+        if (px && (!p.id || px.id !== p.id)) { set.status = 400; return { error: true, message: `Már létező e-mail cím (másik játékos): ${e}` }; }
       }
 
       const result = await db.transaction(async (tx) => {
@@ -220,7 +212,7 @@ export const applyRouter = new Elysia({ prefix: '/api/apply' })
                     react: PlayerInviteEmail({
                       inviteUrl,
                       recipientName: p.firstName || p.nickname,
-                      teamName: newTeamName,
+                      teamName: currentTeamName,
                       expiresAt: expiresAt.toLocaleDateString('hu-HU'),
                       inviterName: 'ELITE Beerpong',
                       supportEmail: 'sorpingpong@gmail.com'
@@ -331,12 +323,12 @@ export const applyRouter = new Elysia({ prefix: '/api/apply' })
       const [lg] = await db.select().from(leagues).where(eq(leagues.id, lt.leagueId));
       if (!lg) { set.status = 404; return { error: true, message: 'League not found' }; }
 
-      // Ensure requester is captain of current team-season
+      // Any team member can use rename flow (not only captain)
       const [me] = await db.select().from(players).where(eq(players.userId, session.user.id));
       if (!me) { set.status = 403; return { error: true, message: 'No player linked to this user' }; }
       const [tpAuth] = await db.select().from(teamPlayers)
         .where(and(eq(teamPlayers.teamId, lt.teamId), eq(teamPlayers.seasonId, lg.seasonId), eq(teamPlayers.playerId, me.id)));
-      if (!tpAuth || !tpAuth.captain) { set.status = 403; return { error: true, message: 'Not team captain' }; }
+      if (!tpAuth) { set.status = 403; return { error: true, message: 'Not a member of this team for this season' }; }
 
       const result = await db.transaction(async (tx) => {
         // 1) Create new team

@@ -4,7 +4,7 @@ import { join } from 'path';
 import { auth } from '../plugins/auth/auth';
 import { db } from '../db';
 import { players, seasons, teamPlayers, leagueTeams, leagues, teams, matches, playerGamedayMvps, playerInvitations } from '../database/schema';
-import { eq } from 'drizzle-orm';
+import { eq, and, inArray } from 'drizzle-orm';
 import { randomUUID } from 'crypto';
 
 export const userRouter = new Elysia({ prefix: '/api/user' })
@@ -16,34 +16,46 @@ export const userRouter = new Elysia({ prefix: '/api/user' })
         set.status = 401;
         return { error: true, message: 'Unauthorized' };
       }
-      const [activeSeason] = await db.select().from(seasons).where(eq(seasons.isActive, true));
-      if (!activeSeason) {
-        set.status = 404;
-        return { error: true, message: 'No active season' };
-      }
       const [pl] = await db.select().from(players).where(eq(players.userId, userId));
       if (!pl) {
         set.status = 404;
         return { error: true, message: 'Player not found for user' };
       }
-      // team based on team_players in active season (preferred), otherwise player.teamId fallback
-      const [rel] = await db.select().from(teamPlayers).where(eq(teamPlayers.playerId, pl.id));
-      const teamId = rel?.teamId || pl.teamId;
-      if (!teamId) {
-        set.status = 404;
-        return { error: true, message: 'Team not found for player in active season' };
+      // All teams this player is in (any season) – same as active-invite
+      const allPlayerTeams = await db.select({ teamId: teamPlayers.teamId }).from(teamPlayers).where(eq(teamPlayers.playerId, pl.id));
+      const teamIds = [...new Set((allPlayerTeams as any[]).map(r => r.teamId))];
+      if (teamIds.length === 0) {
+        const fallbackTeamId = (pl as any).teamId;
+        if (!fallbackTeamId) {
+          set.status = 404;
+          return { error: true, message: 'Team not found for player' };
+        }
+        teamIds.push(fallbackTeamId);
       }
-      // find a league in active season where this team participates
-      const leaguesInSeason = await db.select().from(leagues).where(eq(leagues.seasonId, activeSeason.id));
-      const leagueIds = new Set((leaguesInSeason as any[]).map(l => l.id));
-      const leagueTeamRows = await db.select().from(leagueTeams).where(eq(leagueTeams.teamId, teamId));
-      const found = (leagueTeamRows as any[]).find(lt => leagueIds.has(lt.leagueId));
-      if (!found) {
+      // Active season (for preference)
+      const [activeSeason] = await db.select().from(seasons).where(eq(seasons.isActive, true));
+      // All leagues that are active (isActive: true) – these are the "aktív tournament" options
+      const activeLeagues = await db.select().from(leagues).where(eq(leagues.isActive, true));
+      const activeLeagueIds = new Set((activeLeagues as any[]).map(l => l.id));
+      // League_teams for my teams in any of these active leagues (approved or pending)
+      const myLeagueTeams = await db.select().from(leagueTeams).where(inArray(leagueTeams.teamId, teamIds));
+      const inActiveLeague = (myLeagueTeams as any[]).filter(lt => activeLeagueIds.has(lt.leagueId));
+      if (inActiveLeague.length === 0) {
         set.status = 404;
-        return { error: true, message: 'No league found for player team in active season' };
+        return { error: true, message: 'No active league found for player team' };
       }
-      const [team] = await db.select().from(teams).where(eq(teams.id, teamId));
-      return { leagueId: found.leagueId, teamId, teamName: team?.name || null };
+      // Prefer: (1) approved in active season, (2) any in active season, (3) approved elsewhere, (4) first
+      const activeSeasonId = activeSeason?.id;
+      const byLeague = (id: string) => (activeLeagues as any[]).find((l: any) => l.id === id);
+      const inActiveSeason = activeSeasonId
+        ? inActiveLeague.filter((lt: any) => byLeague(lt.leagueId)?.seasonId === activeSeasonId)
+        : [];
+      const approvedInSeason = inActiveSeason.find((lt: any) => (lt.status || '') === 'approved');
+      const anyInSeason = inActiveSeason[0];
+      const approvedAny = inActiveLeague.find((lt: any) => (lt.status || '') === 'approved');
+      const pick = approvedInSeason || anyInSeason || approvedAny || inActiveLeague[0];
+      const [team] = await db.select().from(teams).where(eq(teams.id, pick.teamId));
+      return { leagueId: pick.leagueId, teamId: pick.teamId, teamName: team?.name || null };
     } catch (error) {
       set.status = 400;
       return { error: true, message: error instanceof Error ? error.message : 'Unknown error occurred' };
@@ -69,19 +81,31 @@ userRouter.get('/active-invite', async ({ request, set }) => {
     }
     if (!cp) return { hasInvite: false };
 
-    // ensure captain in active season
-    const capRel = (await db.select().from(teamPlayers)
-      .where(eq(teamPlayers.playerId, cp.id)))
-      .find(r => r.seasonId === activeSeason.id && r.captain === true);
-    if (!capRel) return { hasInvite: false };
+    // All teams this player is in (any season) – so we catch "Amíg BEERom" etc. regardless of roster copy
+    const allPlayerTeams = await db.select({ teamId: teamPlayers.teamId }).from(teamPlayers).where(eq(teamPlayers.playerId, cp.id));
+    const teamIds = [...new Set((allPlayerTeams as any[]).map(r => r.teamId))];
+    if (teamIds.length === 0) return { hasInvite: false };
 
-    const teamId = capRel.teamId as string;
+    // All pending league_teams for any of these teams
+    const pendingLts = await db.select().from(leagueTeams).where(
+      and(
+        inArray(leagueTeams.teamId, teamIds),
+        eq(leagueTeams.status, 'pending')
+      )
+    );
+    if (pendingLts.length === 0) return { hasInvite: false };
 
-    // find leagueTeam in active season for this team
-    const leaguesInSeason = await db.select().from(leagues).where(eq(leagues.seasonId, activeSeason.id));
-    const leagueIds = new Set((leaguesInSeason as any[]).map(l => l.id));
-    const lts = await db.select().from(leagueTeams).where(eq(leagueTeams.teamId, teamId));
-    const rel = (lts as any[]).find(lt => leagueIds.has(lt.leagueId));
+    // Prefer pending invite whose league is in the active season; else use any pending (so we always show if there is one)
+    let rel: (typeof pendingLts)[0] | null = null;
+    for (const lt of pendingLts as any[]) {
+      const [lg] = await db.select().from(leagues).where(eq(leagues.id, lt.leagueId));
+      if (lg && String(lg.seasonId) === String(activeSeason.id)) {
+        rel = lt;
+        break;
+      }
+    }
+    if (!rel && pendingLts.length > 0) rel = pendingLts[0] as any;
+    if (!rel) return { hasInvite: false };
 
     // Compute team-level invitation state purely from league_teams status
     const leaguePending = !!rel && (((rel as any).status || 'pending') === 'pending');

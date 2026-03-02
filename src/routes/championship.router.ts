@@ -511,8 +511,9 @@ export const championshipRouter = new Elysia({ prefix: '/api/championship' })
       return { error: true, message: error instanceof Error ? error.message : 'Unknown error occurred' };
     }
   })
-  .get('/', async () => {
-    return await getAllChampionships();
+  .get('/', async ({ query }) => {
+    const includeInactive = query.includeInactive === '1' || query.includeInactive === 'true';
+    return await getAllChampionships({ includeInactive });
   })
   .get('/:id', async ({ params: { id }, set }) => {
     try {
@@ -802,12 +803,16 @@ export const championshipRouter = new Elysia({ prefix: '/api/championship' })
       return { error: true, message: (error as any)?.message || 'Invalid input' };
     }
   })
-  .get('/stats', async ({ set }) => {
+  .get('/stats', async ({ query, set }) => {
     try {
-      // Get all active championships
+      const includeInactive = query.includeInactive === '1' || query.includeInactive === 'true';
       const activeChampionships = await db.select()
         .from(leagues)
-        .where(eq(leagues.isArchived, false))
+        .where(
+          includeInactive
+            ? eq(leagues.isArchived, false)
+            : and(eq(leagues.isArchived, false), eq(leagues.isActive, true))
+        )
         .orderBy(leagues.createdAt);
 
       const stats = await Promise.all(
