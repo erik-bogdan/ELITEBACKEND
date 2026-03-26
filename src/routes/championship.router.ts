@@ -602,7 +602,8 @@ export const championshipRouter = new Elysia({ prefix: '/api/championship' })
         matchesPerDay,
         startTime: query.startTime as string || "08:00",
         matchDuration: Number(query.matchDuration) || 40,
-        tables: Number(query.tables) || 6
+        tables: Number(query.tables) || 6,
+        matchesBetweenOpponents: Number((query as any).matchesBetweenOpponents) || 2
       });
     } catch (error) {
       set.status = 400;
@@ -735,10 +736,17 @@ export const championshipRouter = new Elysia({ prefix: '/api/championship' })
   })
   .post('/:id/generate-schedule', async ({ params: { id }, body, set }) => {
     try {
-      const { teams, matchesPerDay, startTime, matchDuration, tables, dayDates } = body as any;
+      const { teams, matchesPerDay, startTime, matchDuration, tables, dayDates, matchesBetweenOpponents } = body as any;
       if (!Array.isArray(teams) || teams.length < 2) throw new Error('Minimum 2 csapat kell');
       if (!Array.isArray(matchesPerDay) || matchesPerDay.length === 0) throw new Error('matchesPerDay szükséges');
-      const schedule = generateSchedule({ teams, matchesPerDay, startTime, matchDuration, tables });
+      const schedule = generateSchedule({
+        teams,
+        matchesPerDay,
+        startTime,
+        matchDuration,
+        tables,
+        matchesBetweenOpponents: matchesBetweenOpponents ?? 2
+      });
       const scheduleWithDates = Array.isArray(dayDates)
         ? schedule.map((m: any) => ({ ...m, date: dayDates[m.day - 1] || null }))
         : schedule;

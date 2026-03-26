@@ -21,6 +21,7 @@ export interface SchedulerInput {
   startTime?: string;    
   matchDuration?: number; 
   tables?: number;
+  matchesBetweenOpponents?: number;
 }
 
 /**
@@ -211,9 +212,13 @@ export function generateSchedule({
   matchesPerDay,
   startTime = "08:00",
   matchDuration = 40,
-  tables = 6
+  tables = 6,
+  matchesBetweenOpponents = 2
 }: SchedulerInput): Match[] {
   if (teams.length < 2) throw new Error("Minimum 2 csapat kell.");
+  if (!Number.isInteger(matchesBetweenOpponents) || matchesBetweenOpponents < 1) {
+    throw new Error("A matchesBetweenOpponents legalabb 1 pozitiv egesz kell legyen.");
+  }
 
   const maxTables = Math.floor(teams.length / 2);
   if (tables > maxTables) {
@@ -222,20 +227,25 @@ export function generateSchedule({
 
   const randomizedTeams = shuffleArray(teams);
   const roundRobinMatches = roundRobin(randomizedTeams);
-  const allMatches = [...roundRobinMatches, ...roundRobinMatches.map(m => ({ home: m.away, away: m.home }))];
+  const reverseRoundRobinMatches = roundRobinMatches.map(m => ({ home: m.away, away: m.home }));
+  const allMatches: Match[] = [];
+  for (let i = 0; i < matchesBetweenOpponents; i++) {
+    // Preserve existing sequence schema: odd cycles use original direction, even cycles reversed.
+    allMatches.push(...(i % 2 === 0 ? roundRobinMatches : reverseRoundRobinMatches));
+  }
+  const dayBuckets = teams.length % 2 === 0
+    ? buildDayBucketsEvenTeams(allMatches, teams, matchesPerDay)
+    : buildDayBucketsOddTeams(allMatches, teams, matchesPerDay);
 
   const fullSchedule: Match[] = [];
-  let matchIndex = 0;
   let globalOrder = 0;
   let roundOffset = 0; // ensure continuous rounds across days
 
   const [startHour, startMinute] = startTime.split(':').map(Number);
   const startMinutes = startHour * 60 + startMinute;
 
-  for (let day = 0; day < matchesPerDay.length; day++) {
-    const matchesForThisDay = (matchesPerDay[day] * teams.length) / 2;
-    const dayMatches = allMatches.slice(matchIndex, matchIndex + matchesForThisDay);
-    matchIndex += matchesForThisDay;
+  for (let day = 0; day < dayBuckets.length; day++) {
+    const dayMatches = dayBuckets[day];
 
     // number of parallel slots (rounds) for this day
     const slotsForDay = Math.ceil(dayMatches.length / tables);
@@ -246,6 +256,144 @@ export function generateSchedule({
   }
 
   return fullSchedule;
+}
+
+function buildDayBucketsEvenTeams(allMatches: Match[], teams: string[], matchesPerDay: number[]): Match[][] {
+  const dayBuckets: Match[][] = [];
+  let matchIndex = 0;
+  for (let day = 0; day < matchesPerDay.length; day++) {
+    const matchesForThisDay = (matchesPerDay[day] * teams.length) / 2;
+    const dayMatches = allMatches.slice(matchIndex, matchIndex + matchesForThisDay);
+    matchIndex += matchesForThisDay;
+    dayBuckets.push(dayMatches);
+  }
+  return dayBuckets;
+}
+
+type MatchPoolItem = { id: number; order: number; home: string; away: string };
+
+function buildDayBucketsOddTeams(allMatches: Match[], teams: string[], matchesPerDay: number[]): Match[][] {
+  const pool: MatchPoolItem[] = allMatches.map((m, idx) => ({
+    id: idx,
+    order: idx,
+    home: m.home,
+    away: m.away
+  }));
+
+  const dayBuckets: Match[][] = [];
+  let remaining = [...pool];
+
+  for (let day = 0; day < matchesPerDay.length; day++) {
+    const targetPerTeam = Number(matchesPerDay[day]);
+    if (!Number.isInteger(targetPerTeam) || targetPerTeam <= 0) {
+      throw new Error('A matchesPerDay csak pozitiv egesz szamokat tartalmazhat.');
+    }
+
+    const totalAppearances = teams.length * targetPerTeam;
+    if (totalAppearances % 2 !== 0) {
+      throw new Error(`A ${day + 1}. jateknapra beallitott meccsszam (${targetPerTeam}) paratlan csapatszamnal nem oszthato ki pontosan.`);
+    }
+    const matchesNeeded = totalAppearances / 2;
+
+    const pickedIds = pickMatchesForOddDay(remaining, teams, targetPerTeam, matchesNeeded);
+    const pickedSet = new Set(pickedIds);
+    const selected = remaining.filter((m) => pickedSet.has(m.id)).sort((a, b) => a.order - b.order);
+    if (selected.length !== matchesNeeded) {
+      throw new Error(`Nem sikerult pontosan kiosztani a ${day + 1}. jateknap meccseit.`);
+    }
+
+    dayBuckets.push(selected.map((m) => ({ home: m.home, away: m.away })));
+    remaining = remaining.filter((m) => !pickedSet.has(m.id));
+  }
+
+  return dayBuckets;
+}
+
+function pickMatchesForOddDay(
+  pool: MatchPoolItem[],
+  teams: string[],
+  targetPerTeam: number,
+  matchesNeeded: number
+): number[] {
+  const maxAttempts = 200;
+  const byTeam = new Map<string, MatchPoolItem[]>();
+  for (const t of teams) byTeam.set(t, []);
+  for (const item of pool) {
+    if (byTeam.has(item.home)) byTeam.get(item.home)!.push(item);
+    if (byTeam.has(item.away)) byTeam.get(item.away)!.push(item);
+  }
+
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    const deficits = new Map<string, number>();
+    for (const t of teams) deficits.set(t, targetPerTeam);
+
+    const selected = new Set<number>();
+
+    const hasFeasibleRemaining = (): boolean => {
+      for (const t of teams) {
+        const need = deficits.get(t) || 0;
+        if (need <= 0) continue;
+        const candidates = (byTeam.get(t) || []).filter((item) => {
+          if (selected.has(item.id)) return false;
+          const other = item.home === t ? item.away : item.home;
+          return (deficits.get(other) || 0) > 0;
+        }).length;
+        if (candidates < need) return false;
+      }
+      return true;
+    };
+
+    for (let step = 0; step < matchesNeeded; step++) {
+      const focusTeam = [...deficits.entries()]
+        .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))[0]?.[0];
+      if (!focusTeam || (deficits.get(focusTeam) || 0) <= 0) break;
+
+      const focusCandidates = (byTeam.get(focusTeam) || []).filter((item) => {
+        if (selected.has(item.id)) return false;
+        const homeNeed = deficits.get(item.home) || 0;
+        const awayNeed = deficits.get(item.away) || 0;
+        return homeNeed > 0 && awayNeed > 0;
+      });
+
+      const fallbackCandidates = pool.filter((item) => {
+        if (selected.has(item.id)) return false;
+        const homeNeed = deficits.get(item.home) || 0;
+        const awayNeed = deficits.get(item.away) || 0;
+        return homeNeed > 0 && awayNeed > 0;
+      });
+
+      const candidates = focusCandidates.length ? focusCandidates : fallbackCandidates;
+      if (!candidates.length) break;
+
+      const ordered = [...candidates].sort((a, b) => {
+        const aNeed = (deficits.get(a.home) || 0) + (deficits.get(a.away) || 0);
+        const bNeed = (deficits.get(b.home) || 0) + (deficits.get(b.away) || 0);
+        if (bNeed !== aNeed) return bNeed - aNeed;
+        if (attempt % 3 === 0) return a.order - b.order;
+        if (attempt % 3 === 1) return b.order - a.order;
+        const aj = ((a.id + attempt * 17) % 11);
+        const bj = ((b.id + attempt * 17) % 11);
+        return aj - bj;
+      });
+
+      const chosen = ordered[0];
+      selected.add(chosen.id);
+      deficits.set(chosen.home, Math.max(0, (deficits.get(chosen.home) || 0) - 1));
+      deficits.set(chosen.away, Math.max(0, (deficits.get(chosen.away) || 0) - 1));
+
+      if (!hasFeasibleRemaining()) {
+        // Dead-end in this attempt
+        break;
+      }
+    }
+
+    const allZero = teams.every((t) => (deficits.get(t) || 0) === 0);
+    if (allZero && selected.size === matchesNeeded) {
+      return [...selected];
+    }
+  }
+
+  throw new Error('A megadott odd-team napi elosztas nem allithato elo a jelenlegi menetrendbol.');
 }
 
 function roundRobin(teams: string[]): Match[] {
@@ -293,18 +441,38 @@ function scheduleDay(
   globalCounterOffset: number,
   roundOffset: number
 ): Match[] {
-  const slots = Math.ceil(matches.length / tables);
   const scheduled: Match[] = [];
-  let matchIndex = 0;
   let globalCounter = globalCounterOffset;
+  const remaining = [...matches];
+  let slot = 0;
 
-  for (let slot = 0; slot < slots; slot++) {
-    for (let table = 0; table < tables; table++) {
-      if (matchIndex >= matches.length) break;
+  // Build each round/slot so the same team cannot appear twice in one round.
+  while (remaining.length > 0) {
+    const usedTeams = new Set<string>();
+    const pickedIndexes: number[] = [];
 
-      const match = matches[matchIndex++];
+    for (let idx = 0; idx < remaining.length && pickedIndexes.length < tables; idx++) {
+      const candidate = remaining[idx];
+      if (usedTeams.has(candidate.home) || usedTeams.has(candidate.away)) continue;
+      pickedIndexes.push(idx);
+      usedTeams.add(candidate.home);
+      usedTeams.add(candidate.away);
+    }
+
+    // If no non-conflicting pair could be chosen (should be very rare), take one match
+    // to guarantee progress and avoid infinite loops.
+    if (pickedIndexes.length === 0) {
+      pickedIndexes.push(0);
+    }
+
+    const roundMatches = pickedIndexes.map((idx) => remaining[idx]);
+    for (let i = pickedIndexes.length - 1; i >= 0; i--) {
+      remaining.splice(pickedIndexes[i], 1);
+    }
+
+    for (let table = 0; table < roundMatches.length; table++) {
+      const match = roundMatches[table];
       const absoluteMinutes = startMinutes + slot * matchDuration;
-
       scheduled.push({
         ...match,
         day,
@@ -316,6 +484,7 @@ function scheduleDay(
         globalOrder: globalCounter++
       });
     }
+    slot += 1;
   }
   return scheduled;
 }
